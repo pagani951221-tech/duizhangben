@@ -548,7 +548,14 @@ function banner(msg, cls = '', undo = false) {
   const b = $('#banner'); b.textContent = msg; b.className = cls;
   if (undo) b.insertAdjacentHTML('beforeend', ' <button class="quiet" data-act="undo">復原這次匯入</button>');
 }
-const readShop = id => { try { return sanitize(JSON.parse(localStorage.getItem(shopKey(id)) || '{}')); } catch { return blank(); } };
+function readShop(id) {
+  try {
+    const d = sanitize(JSON.parse(localStorage.getItem(shopKey(id)) || '{}'));
+    // 舊版載入的示範資料沒有 demo 標記。匯入紀錄全部是範例檔的話，補上標記，才不會和之後匯入的真報表混在一起
+    if (d.imports.length && d.imports.every(i => i.name.startsWith('範例'))) d.demo = true;
+    return d;
+  } catch { return blank(); }
+}
 function load() {
   try {
     const idx = JSON.parse(localStorage.getItem(SHOPS) || 'null'), old = localStorage.getItem(STORE);
