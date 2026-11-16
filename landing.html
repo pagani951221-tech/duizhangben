@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>對帳本：平台撥款，每一筆都對過了嗎？</title>
+<meta name="description" content="把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。資料只存在你的電腦。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@900&display=swap" rel="stylesheet">
+<style>
+  /* 和對帳本的「清爽」風格同一套顏色；唯一搶眼的元素是那顆朱紅印章 */
+  :root{color-scheme:light;
+    --paper:#f6f7f9;--sheet:#fff;--soft:#eef1f5;--ink:#16181d;--mute:#56606e;--rule:#dfe3ea;
+    --blue:#2f5bea;--on-blue:#fff;--green:#0a7243;--red:#b92d21;--amber:#855300;
+    --sans:"Noto Sans TC",system-ui,"Microsoft JhengHei",sans-serif;--serif:"Noto Serif TC","PMingLiU",serif}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.75 var(--sans)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  h1{font:900 clamp(34px,6.2vw,54px)/1.2 var(--sans);letter-spacing:-.01em;margin:0 0 20px}
+  h2{font:900 clamp(25px,3.6vw,36px)/1.3 var(--sans);margin:0 0 22px}
+  h3{font:700 19px/1.5 var(--sans);margin:0 0 4px}
+  p{margin:0 0 14px}
+  a{color:var(--blue)}
+  :focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+  .mute{color:var(--mute)}
+  .fine{font-size:14px;color:var(--mute)}
+  section{padding:64px 0}
+
+  .top{display:flex;justify-content:space-between;align-items:center;padding:18px 0}
+  .logo{font:900 21px var(--sans);letter-spacing:.04em;color:var(--ink);text-decoration:none}
+  .btn{display:inline-block;padding:12px 22px;border-radius:10px;border:1px solid var(--ink);color:var(--ink);text-decoration:none;font-weight:700;background:var(--sheet)}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:var(--on-blue)}
+  .btn.small{padding:7px 16px;font-size:15px}
+
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center;padding:40px 0 72px}
+  .lead{font-size:19px;max-width:30em}
+  .cta{display:flex;flex-wrap:wrap;gap:12px;margin:26px 0 14px}
+
+  /* 產品示意：用真的版面元件畫，不是圖片 */
+  .mock{position:relative;margin:0;background:var(--sheet);border:1px solid var(--rule);border-radius:16px;padding:24px;
+    box-shadow:0 30px 60px -36px color-mix(in srgb,var(--ink) 55%,transparent)}
+  .mock .label{color:var(--mute);font-size:15px;margin:0}
+  .mock .big{font:900 clamp(38px,5vw,52px)/1.2 var(--sans);font-variant-numeric:tabular-nums;margin:0;letter-spacing:-.02em}
+  .strip{display:flex;height:34px;border-radius:9px;overflow:hidden;margin:14px 0 10px}
+  .strip i{display:block;min-width:8px;border-right:2px solid var(--sheet)}
+  .strip i:last-child{border-right:0}
+  .ok{background:var(--green)}
+  .wait{background:repeating-linear-gradient(135deg,var(--amber) 0 5px,transparent 5px 10px)}
+  .late{background:var(--red)}
+  .diff{background:repeating-linear-gradient(135deg,var(--red) 0 3px,transparent 3px 8px)}
+  .legend{display:flex;flex-wrap:wrap;gap:2px 18px;list-style:none;padding:0;margin:0 0 16px;font-size:14px}
+  .legend li{display:flex;align-items:center;gap:7px}
+  .legend i{width:12px;height:12px;border-radius:3px;flex:none}
+  .legend b{font-variant-numeric:tabular-nums}
+  .rows{width:100%;border-collapse:collapse;font-size:14px}
+  .rows th{font-weight:500;color:var(--mute);text-align:left;padding:6px 6px;border-bottom:1px solid var(--rule)}
+  .rows td{padding:8px 6px;border-bottom:1px solid var(--rule);white-space:nowrap}
+  .rows .n{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;font:600 12.5px/1.75 var(--sans);padding:0 10px;border-radius:999px;background:color-mix(in srgb,currentColor 14%,transparent)}
+  .pill.bad{color:var(--red)} .pill.good{color:var(--green)} .pill.hold{color:var(--amber)}
+  @media (min-width:1180px){.mock .seal{right:-14px}} /* 夠寬才讓印章凸出卡片，否則會撐出橫向捲軸 */
+  .seal{position:absolute;right:6px;top:-26px;font:900 19px/1.35 var(--serif);letter-spacing:.1em;color:var(--red);text-align:center;
+    padding:8px 12px 8px 14px;border:3px solid currentColor;border-radius:6px;background:var(--sheet);transform:rotate(7deg);
+    box-shadow:inset 0 0 0 2px var(--sheet),inset 0 0 0 3.5px currentColor}
+  .seal small{display:block;font:900 26px/1.2 var(--serif);letter-spacing:0}
+  /* 起始只放大到 1.2 倍：再大就會超出頁面邊界，撐出橫向捲軸 */
+  @keyframes thunk{from{transform:rotate(-4deg) scale(1.2);opacity:0}60%{opacity:1}to{transform:rotate(7deg) scale(1)}}
+  @media (prefers-reduced-motion:no-preference){.seal{animation:thunk .4s .5s cubic-bezier(.2,.8,.2,1) both}}
+
+  .pains{list-style:none;padding:0;margin:0;max-width:44em}
+  .pains li{border-top:1px solid var(--rule);padding:18px 0}
+  .pains li:last-child{border-bottom:1px solid var(--rule)}
+  .pains b{display:block;font-size:19px}
+
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:26px;list-style:none;padding:0;margin:0;counter-reset:s}
+  .steps li{counter-increment:s;border-top:3px solid var(--blue);padding-top:12px}
+  .steps li::before{content:counter(s);font:900 40px/1 var(--sans);color:var(--blue);display:block;margin-bottom:8px}
+
+  .catch{margin:0;max-width:48em}
+  .catch > div{display:grid;grid-template-columns:132px 1fr;gap:8px 22px;border-top:1px solid var(--rule);padding:18px 0 6px}
+  .catch dt{padding-top:3px}
+  .catch dd{margin:0}
+  .more{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 56px;max-width:860px}
+
+  .safe{background:var(--ink);color:var(--paper)}
+  .safe ul{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px 40px}
+  .safe li{border-top:1px solid color-mix(in srgb,var(--paper) 35%,transparent);padding-top:12px}
+
+  .price{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:760px}
+  .price > div{background:var(--sheet);border:1px solid var(--rule);border-radius:16px;padding:24px}
+  .price .amt{font:900 40px/1.2 var(--sans);font-variant-numeric:tabular-nums;margin:6px 0}
+  .price .amt small{font:500 16px var(--sans);color:var(--mute);margin-left:4px}
+  .price ul{margin:10px 0 0;padding-left:20px}
+  .trial{margin-top:22px;font-size:19px;font-weight:700}
+
+  details{border-top:1px solid var(--rule);max-width:44em}
+  details:last-of-type{border-bottom:1px solid var(--rule)}
+  summary{cursor:pointer;padding:16px 0;font-weight:700;font-size:18px}
+  details p{color:var(--mute);margin:-4px 0 18px}
+
+  .end{text-align:left}
+  .end h2{font-size:clamp(28px,4.4vw,44px)}
+  footer{padding:28px 0 48px;border-top:1px solid var(--rule)}
+
+  /* 草稿標記：要換成你自己資料的地方。上線前把 .draft 那一條和 class="todo" 拿掉 */
+  .draft{background:color-mix(in srgb,var(--amber) 16%,var(--sheet));border-bottom:2px dashed var(--amber);padding:10px 0;font-size:15px}
+  .todo{outline:2px dashed var(--amber);outline-offset:4px;border-radius:4px}
+
+  @media (max-width:820px){
+    section{padding:48px 0}
+    .hero{grid-template-columns:1fr;gap:54px;padding:20px 0 56px}
+    .seal{right:6px}
+    .catch > div{grid-template-columns:1fr}
+    .more{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="draft"><div class="wrap">這是草稿，還沒填聯絡連結。用記事本打開這個檔案，把最下面 CONTACT_URL 那一行換成你的 LINE 連結，這條提示就會自動消失。</div></div>
+
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="#top" id="top">對帳本</a>
+    <a class="btn small" href="recon.html#demo">看示範</a>
+  </header>
+
+  <main>
+  <div class="hero">
+    <div>
+      <h1>平台撥款，<br>每一筆都對過了嗎？</h1>
+      <p class="lead">把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。不用再開兩個 Excel，一筆一筆比訂單編號。</p>
+      <div class="cta">
+        <a class="btn primary" href="#contact">找我試用</a>
+        <a class="btn" href="recon.html#demo">先看示範</a>
+      </div>
+      <p class="fine">資料只存在你自己的電腦。不用註冊，也不用給任何人你的賣場密碼。</p>
+    </div>
+
+    <figure class="mock" aria-label="對帳本畫面示意，使用示範資料">
+      <div class="seal" aria-hidden="true">還沒入帳<small>$2,012</small></div>
+      <p class="label">這一季的應收款，共 68 張訂單</p>
+      <p class="big">$41,080</p>
+      <div class="strip" aria-hidden="true"><i class="ok" style="flex:34507"></i><i class="wait" style="flex:3016"></i><i class="late" style="flex:2012"></i><i class="diff" style="flex:1545"></i></div>
+      <ul class="legend">
+        <li><i class="ok"></i>已入帳 <b>$34,507</b></li>
+        <li><i class="wait"></i>等待入帳 <b>$3,016</b></li>
+        <li><i class="late"></i>逾期未入帳 <b>$2,012</b></li>
+        <li><i class="diff"></i>金額不符 <b>$1,545</b></li>
+      </ul>
+      <table class="rows">
+        <thead><tr><th>訂單編號</th><th class="n">應收</th><th class="n">實收</th><th>判定</th></tr></thead>
+        <tbody>
+          <tr><td>2611067Z8507</td><td class="n">$412</td><td class="n">$352</td><td><span class="pill bad">少撥 $60</span></td></tr>
+          <tr><td>261101JHD511</td><td class="n">$713</td><td class="n"></td><td><span class="pill bad">逾期未入帳</span></td></tr>
+          <tr><td>261107DSQ206</td><td class="n">$823</td><td class="n">$823</td><td><span class="pill good">已入帳</span></td></tr>
+        </tbody>
+      </table>
+      <figcaption class="fine" style="margin-top:12px">畫面上是示範資料。</figcaption>
+    </figure>
+  </div>
+
+  <section style="padding-top:0">
+    <h2>你現在是怎麼對帳的？</h2>
+    <ul class="pains">
+      <li><b>開兩個 Excel，用訂單編號一筆一筆比</b><span class="mute">一個月幾百張訂單，比到眼睛花。日期範圍一沒對齊，又要重來。</span></li>
+      <li><b>月底發現錢少了，卻不知道是哪一張</b><span class="mute">優惠券、運費、退款、帳款調整全混在一起，差幾十塊最難找。</span></li>
+      <li><b>太麻煩，乾脆相信平台</b><span class="mute">大部分時候沒事。但漏掉的那幾張，只有你自己會發現。</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>三個步驟，每個月做一次</h2>
+    <ol class="steps">
+      <li><h3>匯出訂單報表</h3><p class="mute">在賣家中心的訂單頁面，選好日期範圍後匯出。</p></li>
+      <li><h3>匯出進帳報表</h3><p class="mute">在「我的進帳」匯出同一段期間的款項報表。</p></li>
+      <li><h3>兩個檔案一起拖進來</h3><p class="mute">每張訂單有沒有入帳、金額對不對，直接列給你看。</p></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>它會幫你抓出這些</h2>
+    <dl class="catch">
+      <div><dt><span class="pill bad">逾期未入帳</span></dt>
+      <dd><h3>訂單完成很久了，錢卻沒進來</h3><p class="mute">超過你設定的天數還沒入帳，就會標出來。一鍵複製訂單編號，直接貼給平台客服。</p></dd></div>
+      <div><dt><span class="pill bad">金額不符</span></dt>
+      <dd><h3>有入帳，但數字對不上</h3><p class="mute">告訴你每一張差多少，點進去看金額是怎麼算的。確認過沒問題可以標記，下次不再提醒。</p></dd></div>
+      <div><dt><span class="pill bad">查無訂單</span></dt>
+      <dd><h3>有一筆錢，卻找不到對應的訂單</h3><p class="mute">通常是帳款調整或扣款。至少你會知道有這筆，而不是月底才覺得怪怪的。</p></dd></div>
+      <div><dt><span class="pill hold">等待入帳</span></dt>
+      <dd><h3>還在路上的錢有多少</h3><p class="mute">剛成立的訂單不會亂報警，只會告訴你還有多少錢等著進來。</p></dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2>對完帳，順便把這些也整理好</h2>
+    <div class="more">
+      <div><h3>每月報表</h3><p class="mute">營業額、手續費佔比、已入帳和未入帳，每個月一行。可以列印或匯出 Excel 給會計。</p></div>
+      <div><h3>真正賺多少</h3><p class="mute">填上每項商品的成本，就算出扣掉手續費和成本之後的毛利，還會跟上個月比。</p></div>
+      <div><h3>哪個商品賣最好</h3><p class="mute">各商品的銷量排行和佔比，不用自己拉樞紐分析。</p></div>
+      <div><h3>好幾間賣場</h3><p class="mute">每間賣場各自一本帳，一個選單就能切換。</p></div>
+    </div>
+  </section>
+  </main>
+</div>
+
+<section class="safe">
+  <div class="wrap">
+    <h2>你的訂單和客人資料，不會離開你的電腦</h2>
+    <ul>
+      <li><h3>不上傳</h3><p>報表是在你的瀏覽器裡處理的，沒有傳到任何伺服器。</p></li>
+      <li><h3>不用帳號密碼</h3><p>不用註冊，更不用把賣場的登入資料交給任何人。</p></li>
+      <li><h3>隨時帶走或刪掉</h3><p>可以下載備份檔，也可以一鍵清空全部資料。</p></li>
+    </ul>
+  </div>
+</section>
+
+<div class="wrap">
+  <section id="price">
+    <h2>費用</h2>
+    <div class="price">
+      <div>
+        <h3>第一次設定</h3>
+        <p class="amt">NT$1,500<small>一次</small></p>
+        <ul class="mute">
+          <li>用你的真實報表把欄位和公式對好</li>
+          <li>陪你實際對完一個月的帳</li>
+          <li>教你之後怎麼自己做</li>
+        </ul>
+      </div>
+      <div>
+        <h3>之後每個月</h3>
+        <p class="amt">NT$300<small>每月</small></p>
+        <ul class="mute">
+          <li>平台報表格式變了，幫你調整</li>
+          <li>有問題可以直接問</li>
+          <li>新功能持續更新</li>
+        </ul>
+      </div>
+    </div>
+    <p class="trial">先免費幫你對一個月的帳，覺得有用再談。</p>
+  </section>
+
+  <section>
+    <h2>常見問題</h2>
+    <details><summary>一定要是蝦皮嗎？</summary><p>不一定。只要平台能匯出訂單報表和入帳報表，裡面有訂單編號和金額，就能用。第一次設定時會幫你把欄位對好。</p></details>
+    <details><summary>需要安裝什麼嗎？</summary><p>不用。用電腦的 Chrome 或 Edge 打開檔案就能用，沒有網路也可以。</p></details>
+    <details><summary>我不太會用電腦，可以嗎？</summary><p>可以。第一次會陪你做一遍，之後每個月就是匯出兩個檔案、拖進來，裡面也有說明頁。</p></details>
+    <details><summary>匯入錯檔案會不會把帳弄亂？</summary><p>不會。匯入之後可以一鍵復原，同一份報表匯入兩次也不會重複計算。</p></details>
+    <details><summary>手機可以用嗎？</summary><p>可以用手機看結果。匯出報表和拖檔案這兩步，建議在電腦上做。</p></details>
+  </section>
+
+  <section class="end" id="contact">
+    <h2>拿你上個月的報表來，<br>看看有沒有漏掉的錢。</h2>
+    <p class="lead">不用先付錢，也不用準備什麼。把兩份報表匯出來，我們一起對一次。</p>
+    <div class="cta">
+      <a class="btn primary todo" data-contact href="#contact">用 LINE 聯絡我</a>
+      <a class="btn" href="recon.html#demo">先自己玩玩看示範</a>
+    </div>
+  </section>
+
+  <footer class="fine">對帳本是獨立開發的對帳工具，和任何電商平台沒有合作或隸屬關係。</footer>
+</div>
+<script>
+// 上線前只要改這一行：填上你的 LINE 連結，例如 'https://line.me/ti/p/你的ID'。填好後草稿提示會自動消失。
+const CONTACT_URL = '';
+for (const a of document.querySelectorAll('[data-contact]')) {
+  if (CONTACT_URL) { a.href = CONTACT_URL; a.target = '_blank'; a.rel = 'noopener'; a.classList.remove('todo'); }
+  else a.textContent += '（還沒填連結）';
+}
+if (CONTACT_URL) document.querySelector('.draft').remove();
+</script>
+</body>
+</html>

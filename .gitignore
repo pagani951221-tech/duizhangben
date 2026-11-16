@@ -1,0 +1,8 @@
+# 工具自己的設定，不屬於產品
+.claude/
+.impeccable/
+
+# 同一個資料夾裡的其他試作，不是對帳本的一部分
+local-ai.html
+sing-coach.html
+sample.txt

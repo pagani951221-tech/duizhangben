@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>對帳本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
+<style>
+  /* 設計語言：傳統帳簿。淡綠帳紙、藍色橫線、金額欄的紅色雙線、朱紅印章。 */
+  :root{color-scheme:light;
+    --paper:#eef3ec;--sheet:#fbfdfa;--soft:#e3ebe1;--ink:#14261f;--mute:#4f6158;
+    --rule:#bfd2df;--blue:#2c4f8f;--on-blue:#fff;--red:#c2301c;--green:#1c7446;--amber:#8a5a00;
+    --spine:#173a2e;--on-spine:#e6efe8;--on-red:#fff;--r:4px;--rb:4px;
+    --serif:"Noto Serif TC","Songti TC","PMingLiU",serif;--sans:"Noto Sans TC",system-ui,"Microsoft JhengHei",sans-serif}
+  :root[data-mode=dark]{color-scheme:dark;
+    --paper:#0f1713;--sheet:#151f1a;--soft:#1d2a24;--ink:#e3ebe5;--mute:#9db0a5;
+    --rule:#2a3a44;--blue:#8fb0f0;--on-blue:#0c1626;--red:#ff8f7d;--green:#5fd39a;--amber:#f0c060;
+    --spine:#0a110e;--on-spine:#dfe8e2}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.65 var(--sans)}
+  button,select,input,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;padding:7px 14px;border-radius:var(--rb);border:1px solid var(--ink);background:var(--sheet)}
+  button.primary{background:var(--blue);border-color:var(--blue);color:var(--on-blue);font-weight:700}
+  button.quiet{border-color:var(--rule)}
+  button.danger{border-color:var(--red);color:var(--red)}
+  select,input[type=text],input[type=number],input[type=search],textarea{padding:6px 8px;border-radius:4px;border:1px solid var(--mute);background:var(--sheet);max-width:100%}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  p{margin:0 0 12px}
+  .mute{color:var(--mute)} .small{font-size:13px} .red{color:var(--red)} .green{color:var(--green)}
+  .sr{position:absolute;left:-9999px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .between{justify-content:space-between}
+
+  /* 外框：左邊是書背，右邊是帳頁 */
+  .app{display:flex;min-height:100vh}
+  .spine{flex:0 0 128px;background:var(--spine);color:var(--on-spine);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding:28px 0 16px}
+  .brand{writing-mode:vertical-rl;font:900 32px/1 var(--serif);letter-spacing:.28em;margin:0 auto 36px;padding-top:.28em}
+  .spine nav{display:flex;flex-direction:column;gap:2px;padding-left:14px}
+  .spine nav button{border:0;background:none;color:inherit;text-align:left;padding:9px 14px;border-radius:4px 0 0 4px;font-size:15px}
+  .spine nav button[aria-current]{background:var(--paper);color:var(--ink);font-weight:700;box-shadow:inset 4px 0 0 var(--red)}
+  .spine-note{margin:auto 14px 0;font-size:12px;line-height:1.5;opacity:.85}
+  .page{flex:1;min-width:0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:14px clamp(16px,4vw,44px);border-bottom:1px solid var(--rule)}
+  .bar .shop{font:900 18px var(--serif)}
+  main{padding:24px clamp(16px,4vw,44px) 80px;max-width:1180px}
+  .sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r);padding:22px clamp(16px,3vw,30px);margin-bottom:20px}
+  h1{font:900 26px/1.25 var(--serif);margin:0}
+  h2{font:900 19px/1.3 var(--serif);margin:0}
+  h3{font:700 14px var(--sans);margin:18px 0 6px}
+  .head{margin-bottom:14px}
+
+  /* 總覽：應收款的去向 */
+  .hero .label{color:var(--mute);margin:0}
+  .hero .big{font:900 clamp(40px,7vw,66px)/1.15 var(--serif);font-variant-numeric:tabular-nums;margin:0}
+  .strip{display:flex;height:46px;border:1px solid var(--ink);margin:18px 0 12px;background:var(--sheet)}
+  .strip button{border:0;border-radius:0;padding:0;min-width:8px;border-right:1px solid var(--sheet);transform-origin:left}
+  .strip button:last-child{border-right:0}
+  .strip.intro button{animation:grow .7s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes grow{from{transform:scaleX(0)}}
+  @media (prefers-reduced-motion:reduce){.strip.intro button{animation:none}}
+  .seg-ok{background:var(--green)}
+  .seg-ack{background:color-mix(in srgb,var(--green) 40%,var(--sheet))}
+  .seg-wait{background:repeating-linear-gradient(135deg,var(--amber) 0 5px,transparent 5px 10px)}
+  .seg-late{background:var(--red)}
+  .seg-diff{background:repeating-linear-gradient(135deg,var(--red) 0 3px,transparent 3px 8px)}
+  .seg-none{background:var(--soft)}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 26px;list-style:none;padding:0;margin:0}
+  .legend button{border:0;background:none;padding:3px 0;display:flex;align-items:center;gap:8px}
+  .legend i{width:14px;height:14px;border:1px solid var(--ink);flex:none}
+  .legend b{font-variant-numeric:tabular-nums}
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0 24px;margin:0;border-top:2px solid var(--blue)}
+  .facts div{padding:12px 0;border-bottom:1px solid var(--rule)}
+  .facts dt{font-size:13px;color:var(--mute)}
+  .facts dd{margin:0;font:900 21px/1.4 var(--serif);font-variant-numeric:tabular-nums}
+  .facts dd small{font:400 13px var(--sans);color:var(--mute);margin-left:6px}
+
+  /* 帳頁表格：藍色橫線，金額欄前面一道紅色雙線 */
+  .scroll{overflow-x:auto}
+  .ledger{border-collapse:collapse;width:100%;font-size:14px}
+  .ledger th{font:500 13px var(--sans);color:var(--mute);text-align:left;padding:8px 10px;border-bottom:2px solid var(--blue);white-space:nowrap}
+  .ledger td{padding:9px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+  .ledger .n{text-align:right;font-variant-numeric:tabular-nums}
+  .ledger .n1{border-left:3px double color-mix(in srgb,var(--red) 75%,var(--sheet))}
+  .ledger tbody tr:hover td{background:var(--soft)}
+  .ledger tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
+  .ledger td.wrap{white-space:normal;min-width:180px}
+  button.th{border:0;background:none;padding:0;font:inherit;color:inherit}
+  th[aria-sort=ascending] .th::after{content:" ▲"} th[aria-sort=descending] .th::after{content:" ▼"}
+  button.idlink{border:0;background:none;padding:0;color:var(--blue);text-decoration:underline;text-underline-offset:3px;font-variant-numeric:tabular-nums}
+  .bar-cell{width:160px}
+  .barline{height:8px;background:var(--blue);min-width:2px}
+  input.cost{width:92px;text-align:right;padding:3px 6px}
+
+  /* 判定：有問題的蓋朱紅印章，其他安靜 */
+  .stamp{display:inline-block;font:600 13px/1.6 var(--sans);padding:0 8px;border:1px solid currentColor;border-radius:3px}
+  .stamp.bad{color:var(--red);font:900 13px/1.6 var(--serif);letter-spacing:.14em;padding:0 5px 0 8px;border-width:2px;transform:rotate(-4deg);box-shadow:inset 0 0 0 1.5px var(--sheet),inset 0 0 0 2.5px currentColor}
+  .stamp.ok{color:var(--green);border-color:transparent;padding-left:0}
+  .stamp.wait{color:var(--amber);border-style:dashed}
+  .stamp.off{color:var(--mute);border-color:transparent;text-decoration:line-through;padding-left:0}
+  .stamp.big{font-size:18px;line-height:1.7}
+
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}
+  .chips button{padding:3px 12px;border-radius:999px;font-size:13px;border-color:var(--rule)}
+  .chips button[aria-pressed=true]{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+
+  .drop{border:2px dashed var(--mute);border-radius:4px;padding:26px 16px;text-align:center}
+  body.drag .drop{border-color:var(--blue);background:var(--soft)}
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px;list-style:none;padding:0;margin:22px 0;counter-reset:s}
+  .steps li{counter-increment:s;border-top:2px solid var(--blue);padding-top:10px}
+  .steps li::before{content:counter(s);font:900 30px/1 var(--serif);color:var(--blue);display:block;margin-bottom:6px}
+  .steps b{display:block}
+  ul.plain{margin:0;padding-left:18px}
+
+  #banner{padding:10px 14px;border-left:4px solid var(--green);background:var(--sheet);margin-bottom:16px}
+  #banner:empty{display:none}
+  #banner.bad{border-color:var(--red)}
+  .notice{border-left:4px solid var(--amber);padding:8px 14px;margin:16px 0 0;background:var(--soft)}
+
+  svg.chart{width:100%;max-width:760px;height:auto;display:block;margin:6px 0 4px}
+  .c-due{fill:none;stroke:var(--blue);stroke-width:1.5}
+  .c-got{fill:var(--green)}
+  svg.chart text{fill:var(--mute);font-size:12px}
+  svg.chart line{stroke:var(--ink)}
+
+  dialog{color:var(--ink);background:var(--sheet);border:1px solid var(--ink)}
+  dialog::backdrop{background:rgba(10,20,15,.5)}
+  #dlg{border-radius:4px;width:920px;max-width:94vw;padding:22px}
+  #drawer{margin:0 0 0 auto;height:100vh;max-height:100vh;width:440px;max-width:100vw;border-width:0 0 0 1px;padding:22px;overflow-y:auto}
+  #drawer dl{display:grid;grid-template-columns:1fr auto;gap:0;margin:0 0 14px}
+  #drawer dt,#drawer dd{padding:7px 0;border-bottom:1px solid var(--rule);margin:0}
+  #drawer dd{text-align:right;font-variant-numeric:tabular-nums}
+  #drawer .total dt,#drawer .total dd{border-bottom:2px solid var(--blue);font-weight:700}
+  #drawer textarea{width:100%;min-height:74px}
+  .stage{border-top:2px solid var(--blue);padding:12px 0;margin-top:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:10px 0}
+  .field{display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--mute)}
+  .field > *{color:var(--ink);font-size:15px}
+  .fees{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:2px 10px;margin-top:6px;font-size:13px}
+  .actions{margin-top:18px;justify-content:flex-end}
+
+
+  /* ===== 另外兩種風格：只換顏色、字體和形狀，版面和功能相同 ===== */
+  [data-theme=clean]{--paper:#f6f7f9;--sheet:#fff;--soft:#eef1f5;--ink:#16181d;--mute:#5b6472;--rule:#e2e6ec;--blue:#2f5bea;--on-blue:#fff;
+    --red:#b92d21;--green:#0a7243;--amber:#855300;--spine:#fff;--on-spine:#16181d}
+  [data-theme=vivid]{--paper:#f3f2fb;--sheet:#fff;--soft:#eceafa;--ink:#1a1730;--mute:#5e5a78;--rule:#e0def0;--blue:#5b3df5;--on-blue:#fff;
+    --red:#c2255c;--green:#0a7243;--amber:#855300;--spine:#1e1b4b;--on-spine:#ebe9ff}
+  [data-theme=clean][data-mode=dark]{--paper:#0f1115;--sheet:#171a21;--soft:#1f232c;--ink:#e8eaee;--mute:#9aa3b2;--rule:#2a2f3a;--blue:#7da2ff;--on-blue:#0b1220;
+      --red:#ff8a80;--green:#4fd08f;--amber:#f2c35c;--spine:#12141a;--on-spine:#e8eaee}
+  [data-theme=vivid][data-mode=dark]{--paper:#0f0d1f;--sheet:#18152e;--soft:#231f42;--ink:#ecebf8;--mute:#a5a1c4;--rule:#2f2a52;--blue:#a394ff;--on-blue:#120e2b;
+      --red:#ff7aa8;--on-red:#2a0a17;--green:#56d69b;--amber:#f5c56b;--spine:#0a0817;--on-spine:#e6e3ff}
+  :is([data-theme=clean],[data-theme=vivid]){--serif:var(--sans);--r:14px;--rb:9px}
+  :is([data-theme=clean],[data-theme=vivid]) :is(h1,h2,.bar .shop){font-weight:900}
+  :is([data-theme=clean],[data-theme=vivid]) .hero .big{letter-spacing:-.02em}
+  :is([data-theme=clean],[data-theme=vivid]) .facts{border-top:0}
+  :is([data-theme=clean],[data-theme=vivid]) .ledger th{border-bottom:1px solid var(--rule)}
+  :is([data-theme=clean],[data-theme=vivid]) .ledger .n1{border-left:0}
+  :is([data-theme=clean],[data-theme=vivid]) .strip{border:0;border-radius:10px;overflow:hidden;height:40px}
+  :is([data-theme=clean],[data-theme=vivid]) .legend i{border:0;border-radius:4px}
+  :is([data-theme=clean],[data-theme=vivid]) .stamp:is(.bad,.ok,.wait,.off){font:600 12.5px/1.75 var(--sans);letter-spacing:0;padding:0 10px;border:0;border-radius:999px;transform:none;box-shadow:none;text-decoration:none;background:color-mix(in srgb,currentColor 14%,transparent)}
+  :is([data-theme=clean],[data-theme=vivid]) .stamp.big{font-size:15px;padding:1px 14px}
+  :is([data-theme=clean],[data-theme=vivid]) .stage,:is([data-theme=clean],[data-theme=vivid]) .steps li{border-top:1px solid var(--rule)}
+  :is([data-theme=clean],[data-theme=vivid]) .drop{border-radius:var(--r);border-color:var(--rule)}
+  :is([data-theme=clean],[data-theme=vivid]) :is(select,input,textarea){border-radius:9px;border-color:var(--rule)}
+  :is([data-theme=clean],[data-theme=vivid]) button:not(.primary,.danger,.th,.idlink){border-color:var(--rule)}
+  :is([data-theme=clean],[data-theme=vivid]) .chips button[aria-pressed=true]{background:var(--blue);color:var(--on-blue);border-color:var(--blue)}
+  :is([data-theme=clean],[data-theme=vivid]) #dlg{border-radius:var(--r);border-color:var(--rule)}
+  :is([data-theme=clean],[data-theme=vivid]) #drawer{border-color:var(--rule)}
+  :is([data-theme=clean],[data-theme=vivid]) :is(#banner,.notice){border-radius:8px}
+  :is([data-theme=clean],[data-theme=vivid]) .barline{border-radius:4px}
+  :is([data-theme=clean],[data-theme=vivid]) .spine nav button[aria-current]{box-shadow:none}
+  @media (min-width:761px){
+    :is([data-theme=clean],[data-theme=vivid]) .spine{flex-basis:176px;padding-top:22px}
+    :is([data-theme=clean],[data-theme=vivid]) .brand{writing-mode:horizontal-tb;font:900 21px/1.2 var(--sans);letter-spacing:.04em;margin:0 0 26px 26px;padding:0}
+    :is([data-theme=clean],[data-theme=vivid]) .spine nav{padding:0 12px}
+    :is([data-theme=clean],[data-theme=vivid]) .spine nav button{border-radius:9px}
+  }
+  [data-theme=clean] .spine{border-right:1px solid var(--rule)}
+  [data-theme=clean] .spine nav button[aria-current]{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue)}
+  [data-theme=vivid] .spine nav button[aria-current]{background:color-mix(in srgb,var(--on-spine) 16%,transparent);color:var(--on-spine)}
+  [data-theme=vivid] .stamp.bad{background:var(--red);color:var(--on-red)}
+  [data-theme=vivid] .hero{--sheet:#2a1f8f;--ink:#fff;--mute:#d8d3ff;--soft:#4234b8;--green:#5fe0a5;--red:#ff8fb3;--amber:#ffd166;background:var(--sheet);color:var(--ink);border-color:transparent}
+
+  @media (max-width:760px){
+    .app{flex-direction:column}
+    .spine{flex:none;position:static;height:auto;flex-direction:row;align-items:center;padding:8px 0 0 12px;gap:12px}
+    .brand{writing-mode:horizontal-tb;font-size:20px;margin:0 0 8px;padding:0;letter-spacing:.12em}
+    .spine nav{flex-direction:row;overflow-x:auto;padding:0;flex:1}
+    .spine nav button{border-radius:4px 4px 0 0;white-space:nowrap;padding:8px 12px}
+    .spine nav button[aria-current]{box-shadow:inset 0 3px 0 var(--red)}
+    .spine-note{display:none}
+    #drawer{width:100vw}
+  }
+  .help dt{font-weight:700;margin-top:14px}
+  .help dd{margin:2px 0 0}
+  .printonly{display:none}
+  @media print{
+    html[data-theme][data-mode]{--paper:#fff;--sheet:#fff;--soft:#f1f1f1;--ink:#111;--mute:#555;--rule:#ccc;--blue:#1d3f8f;--red:#b3261e;--green:#146c43;--amber:#7a5200}
+    .spine,.bar,#banner,.chips,.drop,dialog,button:not(.idlink,.th){display:none!important}
+    main{padding:0;max-width:none}
+    .printonly{display:inline}
+    .sheet{border:0;padding:0 0 12px}
+  }
+</style>
+<script src="xlsx.full.min.js"></script>
+<script>window.XLSX || document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"><\/script>')</script>
+</head>
+<body>
+<div class="app">
+  <aside class="spine">
+    <div class="brand">對帳本</div>
+    <nav id="nav" aria-label="主選單">
+      <button data-act="go" data-v="home">總覽</button>
+      <button data-act="go" data-v="recon">對帳</button>
+      <button data-act="go" data-v="month">月報</button>
+      <button data-act="go" data-v="prod">商品</button>
+      <button data-act="go" data-v="set">設定</button>
+      <button data-act="go" data-v="help">說明</button>
+    </nav>
+    <p class="spine-note">資料只存在這台電腦，不會上傳。</p>
+  </aside>
+  <div class="page">
+    <header class="bar">
+      <div class="row"><label class="sr" for="shopSel">賣場</label><select id="shopSel" class="shop"></select><span class="mute small" id="fresh"></span></div>
+      <div class="row">
+        <label class="sr" for="period">期間</label><select id="period"></select>
+        <button class="primary" data-act="pick">匯入報表</button>
+        <input id="pick" type="file" multiple hidden accept=".xlsx,.xls,.csv">
+        <input id="restore" type="file" hidden accept=".json">
+      </div>
+    </header>
+    <main>
+      <div id="banner" role="status" aria-live="polite"></div>
+      <section id="v-home"></section>
+      <section id="v-recon" hidden></section>
+      <section id="v-month" hidden></section>
+      <section id="v-prod" hidden></section>
+      <section id="v-set" hidden></section>
+      <section id="v-help" hidden></section>
+    </main>
+  </div>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlgT">
+  <form method="dialog">
+    <h2 id="dlgT">確認匯入內容</h2>
+    <p class="mute small">欄位是自動判斷的，不對的話在這裡改。改過一次會記住，下次不用再選。</p>
+    <div id="staged"></div>
+    <div class="row actions"><button value="cancel" class="quiet">取消</button><button value="ok" class="primary">匯入</button></div>
+  </form>
+</dialog>
+<dialog id="drawer" aria-label="訂單明細"></dialog>
+
+<script>
+'use strict';
+// ================= 核心邏輯（不碰畫面，selfTest 會測） =================
+const pad = n => String(n).padStart(2, '0');
+// 金額可能是數字、"1,234"、"NT$1,234"，或會計格式的 "(1,234)"（括號代表負數）
+function num(v) {
+  if (typeof v === 'number') return v;
+  const t = String(v ?? '').trim(), n = +t.replace(/[^\d.-]/g, '') || 0;
+  return /^\(.*\)$/.test(t) ? -n : n;
+}
+
+function isoDate(v) {
+  if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
+  const s = String(v ?? ''), m = /(\d{4})\D(\d{1,2})\D(\d{1,2})/.exec(s);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  // 民國年：113/07/01、115年11月6日。年份限定 80 到 200，避免把 11/16 14:20 這種時間誤判成日期
+  const r = /(?:^|\D)(\d{2,3})\D(\d{1,2})\D(\d{1,2})(?!\d)/.exec(s);
+  return r && r[1] >= 80 && r[1] <= 200 && r[2] >= 1 && r[2] <= 12 && r[3] >= 1 && r[3] <= 31 ? `${+r[1] + 1911}-${pad(r[2])}-${pad(r[3])}` : '';
+}
+
+// 各欄位用來猜表頭的關鍵字，越前面越優先
+const KEYS = {
+  id: ['訂單編號', '訂單號碼', '訂單號', 'order id', 'order sn', 'order no'],
+  date: ['訂單成立', '成立日期', '成立時間', '訂單日期', '下單'],
+  status: ['訂單狀態', '狀態', 'status'],
+  total: ['商品總價', '訂單金額', '訂單總金額', '買家總支付', '總金額'],
+  product: ['商品名稱', '品名'],
+  qty: ['數量'],
+  paid: ['撥款金額', '進帳金額', '入帳金額', '實收金額', '調整金額', '金額'],
+  pdate: ['撥款完成', '撥款日期', '撥款時間', '進帳日期', '入帳日期', '日期'],
+};
+const FEE_KEYS = ['手續費', '服務費', '處理費'];
+const FIELDS = {
+  order: [['id', '訂單編號'], ['date', '訂單日期'], ['status', '訂單狀態'], ['total', '訂單金額'], ['product', '商品名稱'], ['qty', '數量']],
+  payout: [['id', '訂單編號'], ['paid', '入帳金額'], ['pdate', '入帳日期']],
+};
+const KIND = { order: '訂單報表', payout: '進帳報表', skip: '略過不匯入' };
+
+const guess = (headers, keys) => { for (const k of keys) { const h = headers.find(h => h.toLowerCase().includes(k)); if (h) return h; } return ''; };
+
+function classify(headers) {
+  if (!guess(headers, KEYS.id)) return 'skip';
+  if (guess(headers, KEYS.paid.slice(0, 5))) return 'payout';
+  if (guess(headers, KEYS.status) || guess(headers, KEYS.product)) return 'order';
+  return guess(headers, KEYS.paid) ? 'payout' : 'skip';
+}
+
+// 報表開頭常有標題列：前 20 列裡先找含「訂單編號」的那列當表頭，找不到就取非空欄位最多的那列
+function toTable(rows) {
+  const top = rows.slice(0, 20), filled = r => r.filter(c => String(c).trim()).length;
+  let h = top.findIndex(r => filled(r) > 1 && r.some(c => KEYS.id.some(k => String(c).toLowerCase().includes(k))));
+  if (h < 0) h = top.reduce((b, r, i) => filled(r) > filled(top[b]) ? i : b, 0);
+  if (!rows.length || !filled(rows[h])) return { headers: [], data: [] };
+  const headers = rows[h].map(c => String(c).trim());
+  const data = rows.slice(h + 1).filter(r => r.some(c => String(c).trim()))
+    .map(r => Object.fromEntries(headers.map((k, i) => [k, r[i] ?? '']).filter(([k]) => k)));
+  return { headers: headers.filter(Boolean), data };
+}
+
+function defaults(headers, kind, saved = {}) {
+  if (kind === 'skip') return {};
+  const m = {};
+  for (const [f] of FIELDS[kind]) m[f] = headers.includes(saved[f]) ? saved[f] : guess(headers, KEYS[f]);
+  if (kind === 'order') {
+    const kept = (saved.fees || []).filter(h => headers.includes(h));
+    m.fees = kept.length ? kept : headers.filter(h => FEE_KEYS.some(k => h.includes(k)));
+    m.adds = (saved.adds || []).filter(h => headers.includes(h));
+  }
+  return m;
+}
+const stage = (t, db) => { const kind = classify(t.headers); return { ...t, kind, map: defaults(t.headers, kind, db.map[kind]) }; };
+const usable = st => st.kind !== 'skip' && st.map.id && (st.kind === 'order' || st.map.paid);
+
+function normOrders(data, m) {
+  const out = new Map();
+  for (const r of data) {
+    const id = String(r[m.id] ?? '').trim();
+    if (!id) continue;
+    let o = out.get(id);
+    // shortcut: 訂單層級的金額在每個商品列都重複（蝦皮格式），只取第一列；金額是逐列商品價的平台要改成加總
+    if (!o) out.set(id, o = { id, date: isoDate(r[m.date]), status: String(r[m.status] ?? '').trim(), total: num(r[m.total]),
+                              fee: (m.fees || []).reduce((s, h) => s + Math.abs(num(r[h])), 0),
+                              plus: (m.adds || []).reduce((s, h) => s + Math.abs(num(r[h])), 0), items: [] });
+    const name = String(r[m.product] ?? '').trim();
+    if (name) o.items.push([name, m.qty ? num(r[m.qty]) || 1 : 1]);
+  }
+  return [...out.values()];
+}
+const normPayouts = (data, m) => data.map(r => ({ id: String(r[m.id] ?? '').trim(), date: isoDate(r[m.pdate]), amt: num(r[m.paid]) })).filter(p => p.id && p.amt);
+
+function commit(db, st) {
+  let added = 0, same = 0;
+  if (st.kind === 'order') for (const o of normOrders(st.data, st.map)) { db.orders[o.id] ? same++ : added++; db.orders[o.id] = o; }
+  if (st.kind === 'payout') for (const p of normPayouts(st.data, st.map)) {
+    // shortcut: 用「訂單+日期+金額+工作表」判斷重複匯入；同單同日同額的兩筆入帳會被當成一筆
+    const k = [p.id, p.date, p.amt, st.sheet].join('|');
+    db.payouts[k] ? same++ : added++; db.payouts[k] = p;
+  }
+  db.map[st.kind] = st.map;
+  db.imports.unshift({ name: st.file + (st.sheet ? ' › ' + st.sheet : ''), kind: st.kind, at: new Date().toISOString(), added, same });
+  db.imports.length = Math.min(db.imports.length, 20);
+  return { added, same };
+}
+
+const PROBLEM = new Set(['金額不符', '逾期未入帳', '查無訂單']);
+const RANK = ['金額不符', '逾期未入帳', '查無訂單', '未入帳', '未對帳', '已入帳', '已確認', '已取消'];
+const safeRe = s => { try { return new RegExp(s); } catch { return /取消|不成立/; } };
+
+// 把訂單和入帳紀錄對起來，每張訂單給一個判定
+function reconcile(db, now = Date.now()) {
+  const paid = new Map(), pdate = new Map();
+  for (const p of Object.values(db.payouts)) {
+    paid.set(p.id, (paid.get(p.id) || 0) + p.amt);
+    if (p.date > (pdate.get(p.id) || '')) pdate.set(p.id, p.date);
+  }
+  const hasPay = paid.size > 0, cancelRe = safeRe(db.cancelRe), rows = [];
+  for (const o of Object.values(db.orders)) {
+    const cancelled = cancelRe.test(o.status), plus = o.plus || 0, due = cancelled ? 0 : o.total - o.fee + plus, got = paid.get(o.id);
+    let verdict;
+    if (cancelled && !got) verdict = '已取消';
+    else if (!hasPay) verdict = '未對帳';
+    else if (got === undefined) verdict = o.date && (now - Date.parse(o.date)) / 864e5 > db.lateDays ? '逾期未入帳' : '未入帳';
+    else verdict = Math.abs(got - due) <= db.tol ? '已入帳' : '金額不符';
+    rows.push({ ...o, plus, cancelled, due, got: got ?? null, diff: got === undefined ? null : got - due, paidDate: pdate.get(o.id) || '', verdict });
+    paid.delete(o.id);
+  }
+  for (const [id, got] of paid) rows.push({ id, unknown: true, date: pdate.get(id) || '', status: '', total: 0, fee: 0, plus: 0, items: [], cancelled: false,
+                                           due: 0, got, diff: got, paidDate: pdate.get(id) || '', verdict: '查無訂單' });
+  for (const r of rows) { r.raw = r.verdict; if (db.ack[r.id] && PROBLEM.has(r.verdict)) r.verdict = '已確認'; }
+  return rows.sort((a, b) => RANK.indexOf(a.verdict) - RANK.indexOf(b.verdict) || (a.date < b.date ? 1 : -1));
+}
+
+function summarize(rows, cost = {}) {
+  const s = { orders: 0, cancelled: 0, revenue: 0, fee: 0, plus: 0, cost: 0, due: 0, got: 0, pendingN: 0, pendingAmt: 0, lateN: 0, lateAmt: 0, mismatchN: 0, mismatchAmt: 0, unknownN: 0, by: {} };
+  for (const r of rows) {
+    s.got += r.got || 0;
+    if (r.unknown) { if (r.verdict === '查無訂單') s.unknownN++; continue; }
+    if (r.cancelled) s.cancelled++;
+    else { s.orders++; s.revenue += r.total; s.fee += r.fee; s.plus += r.plus || 0; s.due += r.due;
+           s.cost += r.items.reduce((a, [n, q]) => a + (cost[n] || 0) * q, 0); const g = s.by[r.verdict] ||= { n: 0, due: 0 }; g.n++; g.due += r.due; }
+    if (r.verdict === '未入帳') { s.pendingN++; s.pendingAmt += r.due; }
+    if (r.verdict === '逾期未入帳') { s.lateN++; s.lateAmt += r.due; }
+    if (r.verdict === '金額不符') { s.mismatchN++; s.mismatchAmt += r.diff; }
+  }
+  s.problems = s.lateN + s.mismatchN + s.unknownN;
+  s.profit = s.due - s.cost; // 毛利 = 應收 − 商品成本
+  return s;
+}
+
+// 金額不符的訂單如果差額有共同規律，多半是公式少算一個欄位。找出規律，給使用者一個方向
+function diagnose(rows) {
+  const bad = rows.filter(r => r.verdict === '金額不符' && !r.cancelled && !r.unknown && r.total > 0);
+  if (bad.length < 3) return null;
+  const top = key => { const m = new Map(); for (const r of bad) { const k = key(r); m.set(k, (m.get(k) || 0) + 1); } return [...m].sort((a, b) => b[1] - a[1])[0]; };
+  const [amt, an] = top(r => Math.round(r.diff)), [pct, pn] = top(r => Math.round(r.diff / r.total * 1000) / 10);
+  if (an >= bad.length * 0.6) return { kind: 'amount', value: amt, n: an, of: bad.length };
+  if (pn >= bad.length * 0.6 && pct) return { kind: 'percent', value: pct, n: pn, of: bad.length };
+  return null;
+}
+
+// 給平台客服的訊息：列出逾期未入帳的訂單
+function csMessage(rows, lateDays) {
+  const late = rows.filter(r => r.verdict === '逾期未入帳');
+  if (!late.length) return '';
+  return [`您好，以下 ${late.length} 筆訂單成立已超過 ${lateDays} 天，仍未收到撥款，麻煩協助查詢：`,
+    ...late.map(r => `${r.id}（${r.date}，應收 ${Math.round(r.due)} 元）`),
+    `合計 ${Math.round(late.reduce((s, r) => s + r.due, 0))} 元。謝謝。`].join('\n');
+}
+
+// CSV 可能是 UTF-8 或 Big5（台灣的舊系統常見）。先當 UTF-8 讀，讀不通再用 Big5
+function decodeText(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+  catch { return new TextDecoder('big5').decode(buf); }
+}
+
+const blank = () => ({ shop: '我的賣場', tol: 1, lateDays: 14, cancelRe: '取消|不成立', map: {}, orders: {}, payouts: {}, ack: {}, notes: {}, cost: {}, imports: [] });
+
+const prevMonth = m => { const d = new Date(m + '-01T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); };
+
+// 範例資料：72 張訂單，內含 4 張取消、4 張少撥、3 張逾期沒入帳、5 張剛成立、1 筆查無訂單的帳款調整
+function sampleTables(now = Date.now()) {
+  let seed = 7;
+  const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+  const stamp = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const goods = [['純棉中筒襪 3 入', 199], ['防曬漁夫帽', 390], ['帆布托特包', 520], ['手機掛繩', 149], ['保溫杯 500ml', 450]];
+  const orders = [], pays = [];
+  for (let i = 0; i < 72; i++) {
+    const d = new Date(now - (2 + i * 1.2) * 864e5);
+    const id = stamp(d).slice(2).replace(/-/g, '') + Math.floor(rnd() * 1e6).toString(36).toUpperCase().padStart(4, 'K') + pad(i);
+    const picks = [...new Set(rnd() < 0.3 ? [Math.floor(rnd() * 5), Math.floor(rnd() * 5)] : [Math.floor(rnd() * 5)])].map(g => [goods[g], 1 + Math.floor(rnd() * 2)]);
+    const total = picks.reduce((s, [g, q]) => s + g[1] * q, 0), fee1 = Math.round(total * 0.06), fee2 = Math.round(total * 0.025);
+    const cancelled = i % 17 === 5, status = cancelled ? '已取消' : i < 4 ? '待出貨' : '已完成';
+    for (const [g, q] of picks) orders.push({ '訂單編號': id, '訂單狀態': status, '訂單成立日期': `${stamp(d)} ${pad(9 + i % 10)}:${pad(i * 7 % 60)}`,
+      '商品總價': total, '成交手續費': fee1, '金流與系統處理費': fee2, '商品名稱': g[0], '數量': q });
+    if (cancelled || i < 6 || i % 23 === 11) continue;
+    pays.push({ '訂單編號': id, '撥款完成日期': stamp(new Date(+d + 5 * 864e5)), '撥款金額': total - fee1 - fee2 - (i % 19 === 7 ? 60 : 0) });
+  }
+  const adj = [{ '訂單編號': '000000SAMPLE99', '調整日期': stamp(new Date(now - 20 * 864e5)), '調整金額': -35 }];
+  const t = (file, sheet, data) => ({ file, sheet, headers: Object.keys(data[0]), data });
+  return [t('範例訂單.xlsx', '訂單', orders), t('範例進帳.xlsx', '進帳', pays), t('範例進帳.xlsx', '帳款調整', adj)];
+}
+
+// ================= 畫面 =================
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => (n < 0 ? '-' : '') + '$' + Math.abs(Math.round(n)).toLocaleString('en-US');
+const signed = n => (n > 0 ? '+' : '') + money(n);
+const STORE = 'recon-ledger-v1', SHOPS = 'recon-shops-v1', shopKey = id => `${STORE}:${id}`;
+const UI = { view: 'home', period: '', filter: 'all', q: '', limit: 100, sort: { k: '', dir: 1 }, intro: true };
+let DB = blank(), ROWS = [], MONTHS = [], staged = [], UNDO = null;
+let SH = { cur: 's1', ids: ['s1'], names: {}, theme: 'clean', mode: 'light' }; // 賣場清單和整個程式共用的設定
+
+function banner(msg, cls = '', undo = false) {
+  const b = $('#banner'); b.textContent = msg; b.className = cls;
+  if (undo) b.insertAdjacentHTML('beforeend', ' <button class="quiet" data-act="undo">復原這次匯入</button>');
+}
+const readShop = id => { try { return { ...blank(), ...JSON.parse(localStorage.getItem(shopKey(id)) || '{}') }; } catch { return blank(); } };
+function load() {
+  try {
+    const idx = JSON.parse(localStorage.getItem(SHOPS) || 'null'), old = localStorage.getItem(STORE);
+    if (idx && idx.ids && idx.ids.length) SH = { ...SH, ...idx };
+    else if (old) { localStorage.setItem(shopKey('s1'), old); localStorage.removeItem(STORE); } // 舊版只有一個賣場，搬進新結構
+  } catch {}
+  DB = readShop(SH.cur);
+}
+function openShop(id, name) {
+  save(); SH.cur = id; DB = readShop(id); UNDO = null;
+  if (name) DB.shop = name;
+  Object.assign(UI, { view: 'home', period: '', filter: 'all', q: '', limit: 100, intro: true });
+  save(); refresh(); banner('');
+}
+function save() {
+  // shortcut: 存在 localStorage，上限約 5MB（大約兩萬張訂單）；超過時改用 IndexedDB
+  SH.names[SH.cur] = DB.shop;
+  try { localStorage.setItem(shopKey(SH.cur), JSON.stringify(DB)); localStorage.setItem(SHOPS, JSON.stringify(SH)); }
+  catch { banner('資料存不進瀏覽器（可能太大或是無痕模式），關掉頁面後會消失。請到「設定」下載備份。', 'bad'); }
+}
+
+const hasCost = () => Object.keys(DB.cost).length > 0;
+const inPeriod = () => UI.period ? ROWS.filter(r => r.date.startsWith(UI.period)) : ROWS;
+const stampCls = v => PROBLEM.has(v) ? 'bad' : v === '未入帳' || v === '未對帳' ? 'wait' : v === '已取消' ? 'off' : 'ok';
+const stamp = (v, big = '') => `<span class="stamp ${stampCls(v)} ${big}">${v}</span>`;
+// 總覽長條的分段：判定、樣式、顯示名稱
+const SEG = [['已入帳', 'ok', '已入帳'], ['已確認', 'ack', '已確認'], ['未入帳', 'wait', '等待入帳'], ['逾期未入帳', 'late', '逾期未入帳'], ['金額不符', 'diff', '金額不符'], ['未對帳', 'none', '還沒對帳']];
+
+function refresh() {
+  ROWS = reconcile(DB);
+  const months = [...new Set(ROWS.map(r => r.date.slice(0, 7)).filter(Boolean))].sort().reverse();
+  if (!months.includes(UI.period)) UI.period = '';
+  $('#period').innerHTML = '<option value="">全部期間</option>' + months.map(m => `<option${m === UI.period ? ' selected' : ''}>${m}</option>`).join('');
+  const qs = new URLSearchParams(location.search), mode = qs.get('mode') || SH.mode || 'light';
+  document.documentElement.dataset.theme = qs.get('theme') || SH.theme || 'clean';
+  // 預設固定淺色，不跟著系統變深色；使用者可以在設定裡改成深色或跟隨系統
+  document.documentElement.dataset.mode = mode === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode;
+  $('#shopSel').innerHTML = SH.ids.map(id => `<option value="${id}"${id === SH.cur ? ' selected' : ''}>${esc(id === SH.cur ? DB.shop : SH.names[id] || '賣場')}</option>`).join('')
+    + '<option value="+">＋ 新增賣場</option>';
+  $('#fresh').textContent = DB.imports.length ? `上次匯入 ${DB.imports[0].at.slice(0, 10)}` : '';
+  render();
+}
+function render() {
+  for (const s of document.querySelectorAll('main > section')) s.hidden = s.id !== 'v-' + UI.view;
+  for (const b of document.querySelectorAll('#nav button')) b.dataset.v === UI.view ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current');
+  VIEWS[UI.view]();
+}
+
+const dropHtml = extra => `<div class="drop"><p><b>把報表檔案拖到這裡</b><br><span class="mute">訂單報表和進帳報表可以一起丟，會自動分辨。支援 .xlsx 和 .csv。</span></p>
+  <div class="row" style="justify-content:center"><button class="primary" data-act="pick">選擇檔案</button>${extra}</div></div>`;
+
+function tableHead(sortable) {
+  const col = (k, label, cls = '') => {
+    const on = sortable && UI.sort.k === k;
+    return `<th class="${cls}"${on ? ` aria-sort="${UI.sort.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${sortable ? `<button class="th" data-act="sort" data-k="${k}">${label}</button>` : label}</th>`;
+  };
+  return `<thead><tr><th>訂單編號</th>${col('date', '訂單日期')}<th>狀態</th>${col('total', '訂單金額', 'n n1')}${col('fee', '扣項', 'n')}${col('due', '應收', 'n')}${col('got', '實收', 'n')}${col('diff', '差額', 'n')}<th>判定</th></tr></thead>`;
+}
+function rowHtml(r) {
+  return `<tr><td><button class="idlink" data-act="open" data-id="${esc(r.id)}">${esc(r.id)}</button>${DB.notes[r.id] ? ' <span class="mute small" title="有備註">✎</span>' : ''}</td>
+    <td>${r.date}</td><td>${esc(r.status)}</td>
+    <td class="n n1">${r.unknown ? '' : money(r.total)}</td><td class="n">${r.unknown ? '' : money(r.fee)}</td><td class="n">${r.unknown ? '' : money(r.due)}</td>
+    <td class="n">${r.got === null ? '' : money(r.got)}</td><td class="n ${r.diff && Math.abs(r.diff) > DB.tol ? 'red' : ''}">${r.diff === null ? '' : signed(r.diff)}</td>
+    <td>${stamp(r.verdict)}</td></tr>`;
+}
+const ledger = (rows, sortable) => `<div class="scroll"><table class="ledger">${tableHead(sortable)}<tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`;
+
+function monthChart(list) {
+  const W = 720, H = 170, left = 8, max = Math.max(1, ...list.map(x => Math.max(x[1].due, x[1].got))), bw = (W - left) / list.length, w = Math.min(36, bw * 0.36);
+  return `<svg class="chart" viewBox="0 0 ${W} ${H + 26}" role="img" aria-label="每月應收和已入帳的長條圖">${list.map(([m, s], i) => {
+    const x = left + i * bw, h1 = s.due / max * (H - 4), h2 = Math.max(0, s.got) / max * (H - 4);
+    return `<rect class="c-due" x="${x + 1}" y="${H - h1}" width="${w}" height="${h1}"><title>${m} 應收 ${money(s.due)}</title></rect>
+      <rect class="c-got" x="${x + w + 4}" y="${H - h2}" width="${w}" height="${h2}"><title>${m} 已入帳 ${money(s.got)}</title></rect>
+      <text x="${x + w + 2}" y="${H + 18}" text-anchor="middle">${m}</text>`;
+  }).join('')}<line x1="0" x2="${W}" y1="${H}" y2="${H}"/></svg>`;
+}
+
+const STEPS = `<ol class="steps">
+  <li><b>匯出訂單報表</b><span class="mute">在賣家中心的訂單頁面，選好日期範圍後匯出。</span></li>
+  <li><b>匯出進帳報表</b><span class="mute">在「我的進帳」匯出同一段期間的款項報表。</span></li>
+  <li><b>兩個檔案一起拖進來</b><span class="mute">每張訂單有沒有入帳、金額對不對，馬上列出來。</span></li>
+</ol>`;
+// 選了某個月份時，在數字旁邊顯示和上個月比的增減
+const delta = (now, before) => before > 0 ? `<small style="color:var(--${now >= before ? 'green' : 'red'})">比上月 ${now >= before ? '+' : ''}${Math.round((now - before) / before * 100)}%</small>` : '';
+
+const VIEWS = {
+  home() {
+    const el = $('#v-home');
+    if (!ROWS.length) {
+      el.innerHTML = `<div class="sheet"><h1>先把報表放進來</h1>
+        ${STEPS}
+        ${dropHtml('<button data-act="sample">先用範例資料看看</button>')}</div>`;
+      return;
+    }
+    const rows = inPeriod(), s = summarize(rows, DB.cost), probs = rows.filter(r => PROBLEM.has(r.verdict));
+    const noPay = !Object.keys(DB.payouts).length, segs = SEG.filter(([v]) => s.by[v] && s.by[v].due > 0), intro = UI.intro;
+    UI.intro = false;
+    const sp = UI.period ? summarize(ROWS.filter(r => r.date.startsWith(prevMonth(UI.period))), DB.cost) : null;
+    el.innerHTML = `
+      <div class="sheet hero">
+        <p class="label">${UI.period || '全部期間'}的應收款，共 ${s.orders} 張訂單</p>
+        <p class="big">${money(s.due)}</p>
+        ${segs.length ? `<div class="strip${intro ? ' intro' : ''}">${segs.map(([v, c, label], i) =>
+          `<button class="seg-${c}" style="flex:${s.by[v].due} 1 0px;animation-delay:${i * 90}ms" data-act="go" data-v="recon" data-f="${v}" title="${label} ${money(s.by[v].due)}" aria-label="${label} ${money(s.by[v].due)}，${s.by[v].n} 張"></button>`).join('')}</div>
+        <ul class="legend">${segs.map(([v, c, label]) =>
+          `<li><button data-act="go" data-v="recon" data-f="${v}"><i class="seg-${c}"></i>${label}<b>${money(s.by[v].due)}</b><span class="mute">${s.by[v].n} 張</span></button></li>`).join('')}</ul>` : ''}
+        ${noPay ? '<p class="notice">還沒匯入進帳報表，所以目前只有訂單統計。把進帳報表拖進來就會開始對帳。</p>' : ''}
+      </div>
+      <div class="sheet">
+        <div class="row between head"><h2>${probs.length ? `要處理 <span class="red">${probs.length}</span> 筆` : '要處理的訂單'}</h2>
+          ${probs.length > 5 ? '<button data-act="go" data-v="recon" data-f="problems">看全部</button>' : ''}</div>
+        ${probs.length ? ledger(probs.slice(0, 5), false) : `<p class="${noPay ? 'mute' : 'green'}">${noPay ? '匯入進帳報表後，有問題的訂單會列在這裡。' : '這段期間的帳都對上了。'}</p>`}
+      </div>
+      <div class="sheet">
+        <dl class="facts">
+          <div><dt>營業額</dt><dd>${money(s.revenue)}${sp ? delta(s.revenue, sp.revenue) : ''}</dd></div>
+          <div><dt>手續費等扣項</dt><dd>${money(s.fee)}<small>${s.revenue ? (s.fee / s.revenue * 100).toFixed(1) + '%' : ''}</small></dd></div>
+          <div><dt>實收合計</dt><dd>${money(s.got)}</dd></div>
+          ${hasCost() ? `<div><dt>毛利</dt><dd>${money(s.profit)}<small>${s.due ? Math.round(s.profit / s.due * 100) + '%' : ''}</small>${sp ? delta(s.profit, sp.profit) : ''}</dd></div>`
+                      : '<div><dt>毛利</dt><dd><small style="margin:0"><button class="idlink" data-act="go" data-v="prod">填商品成本後就會算</button></small></dd></div>'}
+          <div><dt>取消的訂單</dt><dd>${s.cancelled}<small>張</small></dd></div>
+          <div><dt>查無訂單的入帳</dt><dd>${s.unknownN}<small>筆</small></dd></div>
+        </dl>
+      </div>
+      <div class="sheet"><h2 class="head">匯入新報表</h2>${dropHtml('')}
+        ${DB.imports.length ? `<h3>最近匯入</h3><ul class="plain small">${DB.imports.slice(0, 6).map(i =>
+          `<li>${esc(i.name)}：${KIND[i.kind]}，新增 ${i.added} 筆${i.same ? `，${i.kind === 'order' ? '更新' : '重複略過'} ${i.same} 筆` : ''}<span class="mute">（${i.at.slice(0, 10)}）</span></li>`).join('')}</ul>` : ''}
+      </div>`;
+  },
+
+  recon() {
+    const rows = inPeriod(), dg = diagnose(rows), c = v => rows.filter(r => v === 'all' || (v === 'problems' ? PROBLEM.has(r.verdict) : r.verdict === v)).length;
+    const chip = (v, label) => `<button data-act="filter" data-f="${v}" aria-pressed="${UI.filter === v}">${label} ${c(v)}</button>`;
+    $('#v-recon').innerHTML = `<div class="sheet">
+      <div class="row between"><h1>對帳明細</h1><div class="row"><label class="sr" for="q">搜尋</label>
+        <input id="q" type="search" placeholder="搜尋訂單編號或商品" value="${esc(UI.q)}">
+        <button class="quiet" data-act="copyIds">複製訂單編號</button><button class="quiet" data-act="copyMsg">複製客服訊息</button><button class="quiet" data-act="exportRecon">匯出 Excel</button></div></div>
+      <div class="chips">${chip('all', '全部')}${chip('problems', '要處理')}${RANK.filter(c).map(v => chip(v, v)).join('')}</div>
+      ${dg ? `<p class="notice" style="margin:0 0 14px">金額不符的 ${dg.of} 張訂單裡，有 ${dg.n} 張都剛好${dg.value < 0 ? '少' : '多'}了${dg.kind === 'amount' ? ' ' + money(Math.abs(dg.value)) : '訂單金額的 ' + Math.abs(dg.value) + '%'}。很可能是同一個欄位沒算進公式：重新匯入訂單報表，在確認畫面把那個欄位勾進${dg.value < 0 ? '扣項' : '加項'}。</p>` : ''}
+      <div id="reconTable"></div>
+      <p class="mute small" style="margin-top:14px">應收是訂單金額減掉手續費等扣項，再加上平台補貼。實收和應收相差 ${DB.tol} 元以內算已入帳，成立超過 ${DB.lateDays} 天還沒入帳算逾期。點訂單編號可以看明細和寫備註。</p></div>`;
+    reconTable();
+  },
+
+  month() {
+    const by = new Map();
+    for (const r of ROWS) { const m = r.date.slice(0, 7) || '無日期'; by.has(m) || by.set(m, []); by.get(m).push(r); }
+    MONTHS = [...by].sort((a, b) => a[0] < b[0] ? 1 : -1).map(([m, rs]) => [m, summarize(rs, DB.cost)]);
+    const dated = MONTHS.filter(x => x[0] !== '無日期').slice(0, 12).reverse(), T = summarize(ROWS, DB.cost);
+    const totalRow = `<tfoot><tr><td>合計</td><td class="n">${T.orders}</td><td class="n n1">${money(T.revenue)}</td><td class="n">${money(T.fee)}</td><td class="n">${T.revenue ? (T.fee / T.revenue * 100).toFixed(1) + '%' : ''}</td>
+      <td class="n">${money(T.due)}</td>${hasCost() ? `<td class="n">${money(T.cost)}</td><td class="n">${money(T.profit)}</td>` : ''}<td class="n">${money(T.got)}</td><td class="n">${money(T.pendingAmt + T.lateAmt)}</td><td class="n">${T.problems}</td></tr></tfoot>`;
+    $('#v-month').innerHTML = `<div class="sheet"><div class="row between head"><h1>月報<span class="printonly">，${esc(DB.shop)}，列印於 ${isoDate(new Date())}</span></h1><div class="row"><button class="quiet" data-act="print">列印</button><button class="quiet" data-act="exportMonth">匯出 Excel</button></div></div>
+      ${MONTHS.length ? `${dated.length ? monthChart(dated) + '<ul class="legend small" style="margin-bottom:18px"><li class="row"><i class="c-swatch" style="border:1.5px solid var(--blue)"></i>應收</li><li class="row"><i class="seg-ok"></i>已入帳</li></ul>' : ''}
+        <div class="scroll"><table class="ledger"><thead><tr><th>月份</th><th class="n">訂單</th><th class="n n1">營業額</th><th class="n">扣項</th><th class="n">佔比</th><th class="n">應收</th>${hasCost() ? '<th class="n">商品成本</th><th class="n">毛利</th>' : ''}<th class="n">已入帳</th><th class="n">未入帳</th><th class="n">要處理</th></tr></thead><tbody>
+        ${MONTHS.map(([m, s]) => `<tr><td>${m}</td><td class="n">${s.orders}</td><td class="n n1">${money(s.revenue)}</td>
+          <td class="n">${money(s.fee)}</td><td class="n">${s.revenue ? (s.fee / s.revenue * 100).toFixed(1) + '%' : ''}</td><td class="n">${money(s.due)}</td>${hasCost() ? `<td class="n">${money(s.cost)}</td><td class="n">${money(s.profit)}</td>` : ''}<td class="n">${money(s.got)}</td>
+          <td class="n">${money(s.pendingAmt + s.lateAmt)}</td><td class="n ${s.problems ? 'red' : ''}">${s.problems}</td></tr>`).join('')}</tbody>${totalRow}</table></div>
+        <p class="mute small" style="margin-top:14px">月份依訂單成立日期歸屬，不受右上角的期間篩選影響。</p>` : '<p class="mute">匯入報表後，這裡會列出每個月的營業額和入帳狀況。</p>'}</div>`;
+  },
+
+  prod() {
+    const by = new Map();
+    for (const r of inPeriod()) if (!r.cancelled) for (const [name, q] of r.items) { by.has(name) || by.set(name, { q: 0, n: 0 }); const p = by.get(name); p.q += q; p.n++; }
+    const list = [...by].sort((a, b) => b[1].q - a[1].q), max = Math.max(1, ...list.map(x => x[1].q)), all = list.reduce((s, x) => s + x[1].q, 0);
+    $('#v-prod').innerHTML = `<div class="sheet"><h1 class="head">商品銷量${UI.period ? '，' + UI.period : ''}</h1>
+      ${list.length ? `<p id="costSum" class="notice" style="margin:0 0 16px"></p>
+        <div class="scroll"><table class="ledger"><thead><tr><th>商品</th><th class="n n1">賣出數量</th><th class="bar-cell"><span class="sr">數量比例</span></th><th class="n">佔比</th><th class="n">訂單數</th><th class="n">單位成本</th><th class="n">成本小計</th></tr></thead><tbody>
+        ${list.slice(0, 100).map(([name, p]) => `<tr><td class="wrap">${esc(name)}</td><td class="n n1">${p.q}</td><td class="bar-cell"><div class="barline" style="width:${p.q / max * 100}%"></div></td>
+          <td class="n">${(p.q / all * 100).toFixed(1)}%</td><td class="n">${p.n}</td>
+          <td class="n"><input class="cost" type="number" min="0" step="any" aria-label="${esc(name)} 的單位成本" data-cost="${esc(name)}" data-q="${p.q}" value="${DB.cost[name] ?? ''}"></td>
+          <td class="n sub">${DB.cost[name] ? money(DB.cost[name] * p.q) : ''}</td></tr>`).join('')}</tbody></table></div>
+        <p class="mute small" style="margin-top:14px">不含已取消的訂單。毛利是應收減商品成本，不含包材和運費。${list.length > 100 ? '只列出前 100 項。' : ''}</p>` : '<p class="mute">訂單報表裡沒有商品欄位，或是還沒有資料。</p>'}</div>`;
+    if (list.length) costLine();
+  },
+
+  help() {
+    const row = (v, what, todo) => `<tr><td>${stamp(v)}</td><td class="wrap">${what}</td><td class="wrap">${todo}</td></tr>`;
+    $('#v-help').innerHTML = `
+      <div class="sheet"><h1 class="head">說明</h1><h2>怎麼開始</h2>${STEPS}
+        <p class="mute">之後每週或每月重複一次就好。同一份報表匯入兩次不會重複計算，日期範圍重疊也沒關係。</p></div>
+      <div class="sheet"><h2 class="head">每種判定代表什麼</h2>
+        <div class="scroll"><table class="ledger"><thead><tr><th>判定</th><th>意思</th><th>你該做什麼</th></tr></thead><tbody>
+          ${row('已入帳', '實收和應收一致。', '不用處理。')}
+          ${row('未入帳', `訂單成立還不到 ${DB.lateDays} 天，錢還沒進來。`, '等就好，下次匯入進帳報表時會自動更新。')}
+          ${row('逾期未入帳', `成立超過 ${DB.lateDays} 天，還沒有入帳紀錄。`, '先確認進帳報表的日期範圍夠不夠，再帶著訂單編號問平台客服。')}
+          ${row('金額不符', '有入帳，但金額和應收對不上。', '點訂單編號看差多少，確認原因後標為已確認。')}
+          ${row('查無訂單', '進帳報表有這筆錢，訂單報表卻沒有這張訂單。', '多半是訂單報表的日期範圍不夠，補匯入更早的訂單報表。')}
+          ${row('已確認', '你看過並確認沒問題的訂單。', '不用處理，想重看可以取消確認。')}
+          ${row('已取消', '訂單狀態是取消或不成立，而且沒有入帳。', '不用處理，不算進營業額。')}
+        </tbody></table></div></div>
+      <div class="sheet"><h2 class="head">常見問題</h2><dl class="help">
+        <dt>應收是怎麼算的？</dt><dd>訂單金額，減掉你勾選的扣項（手續費、賣家負擔的折扣），再加上你勾選的加項（平台補貼）。勾選是在匯入時的確認畫面裡調整。</dd>
+        <dt>幾乎每張都顯示金額不符怎麼辦？</dt><dd>代表公式少算或多算了某個欄位。點一張訂單看差額，對照報表裡哪一欄剛好是這個數字，重新匯入訂單報表，把那一欄勾進扣項或加項。差額有共同規律時，對帳頁上方會直接提示你差了多少。</dd>
+        <dt>匯入錯檔案了怎麼辦？</dt><dd>匯入完成的訊息旁邊有「復原這次匯入」，設定頁也有。重新整理或關掉頁面之後就不能復原，發現不對請馬上按。</dd>
+        <dt>資料存在哪裡？</dt><dd>只存在這台電腦的這個瀏覽器裡，不會上傳。清除瀏覽器資料會一起清掉，請定期到「設定」下載備份。換電腦時用備份檔還原。</dd>
+        <dt>我的報表是 CSV，或日期是民國年，可以嗎？</dt><dd>可以。Excel 和 CSV 都能讀，CSV 不管是 UTF-8 還是 Big5 編碼都行，民國年日期會自動換算。</dd>
+        <dt>可以用在蝦皮以外的平台嗎？</dt><dd>可以。只要訂單報表有訂單編號和金額，進帳報表有訂單編號和入帳金額，匯入時把欄位對應選好就行。</dd>
+        <dt>我有好幾個賣場怎麼辦？</dt><dd>到「設定」新增賣場。每個賣場的資料各自獨立，從上方的賣場選單切換。</dd>
+        <dt>毛利是怎麼算的？</dt><dd>應收減掉商品成本。到「商品」頁填每項商品的單位成本就會開始算，不含包材和運費。</dd>
+      </dl></div>`;
+  },
+
+  set() {
+    $('#v-set').innerHTML = `
+      <div class="sheet"><h1 class="head">設定</h1><h2>對帳規則</h2><div class="grid">
+        <label class="field">賣場名稱<input type="text" data-set="shop" value="${esc(DB.shop)}"></label>
+        <label class="field">金額容許誤差（元）<input type="number" min="0" data-set="tol" value="${DB.tol}"></label>
+        <label class="field">幾天沒入帳算逾期<input type="number" min="1" data-set="lateDays" value="${DB.lateDays}"></label>
+        <label class="field">視為取消的訂單狀態（用 | 分隔）<input type="text" data-set="cancelRe" value="${esc(DB.cancelRe)}"></label>
+        <label class="field">外觀風格<select data-set="theme">${[['ledger', '帳本'], ['clean', '清爽'], ['vivid', '活力']].map(([v, l]) => `<option value="${v}"${v === (SH.theme || 'clean') ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field">明暗<select data-set="mode">${[['light', '淺色'], ['dark', '深色'], ['auto', '跟著系統']].map(([v, l]) => `<option value="${v}"${v === (SH.mode || 'light') ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      </div></div>
+      <div class="sheet"><h2 class="head">賣場</h2>
+        <p>目前有 ${SH.ids.length} 個賣場，每個賣場的資料各自獨立，從上方的賣場選單切換。上面的「賣場名稱」改的是目前這一個。</p>
+        <div class="row"><label class="sr" for="newShop">新賣場的名稱</label><input type="text" id="newShop" placeholder="新賣場的名稱"><button data-act="addShop">新增賣場</button>
+          ${SH.ids.length > 1 ? '<button class="danger" data-act="delShop">刪除目前這個賣場</button>' : ''}</div></div>
+      <div class="sheet"><h2 class="head">資料</h2>
+        <p>目前有 ${Object.keys(DB.orders).length} 張訂單、${Object.keys(DB.payouts).length} 筆入帳紀錄，只存在這台電腦的這個瀏覽器裡。換電腦或清除瀏覽器資料之前，請先下載備份。</p>
+        <div class="row">${UNDO ? '<button data-act="undo">復原上一次匯入</button>' : ''}<button data-act="backup">下載備份</button><button data-act="restore">從備份還原</button><button class="quiet" data-act="sample">加入範例資料</button><button class="danger" data-act="clear">清空所有資料</button></div></div>
+      <div class="sheet"><h2 class="head">目前記住的欄位對應</h2>
+        <p class="mute small">每次匯入時都可以調整，最後一次的選擇會記在這裡。</p>
+        ${['order', 'payout'].map(k => DB.map[k] ? `<h3>${KIND[k]}</h3><ul class="plain small">${FIELDS[k].map(([f, label]) => `<li>${label}：${esc(DB.map[k][f] || '（無）')}</li>`).join('')}
+          ${k === 'order' ? `<li>扣掉的欄位：${esc((DB.map[k].fees || []).join('、') || '（無）')}</li><li>加回的欄位：${esc((DB.map[k].adds || []).join('、') || '（無）')}</li>` : ''}</ul>` : '').join('') || '<p class="mute">還沒匯入過報表。</p>'}</div>`;
+  },
+};
+
+function costLine() {
+  const ins = [...document.querySelectorAll('#v-prod [data-cost]')], filled = ins.filter(i => +i.value > 0).length, s = summarize(inPeriod(), DB.cost);
+  $('#costSum').textContent = filled
+    ? `已填 ${filled} / ${ins.length} 項商品的成本。這段期間商品成本合計 ${money(s.cost)}，毛利 ${money(s.profit)}${filled < ins.length ? '。還有商品沒填，毛利會偏高' : ''}。`
+    : '填上每項商品的單位成本，總覽和月報就會算出毛利。';
+}
+function shown() {
+  const q = UI.q.trim().toLowerCase(), f = UI.filter, { k, dir } = UI.sort, empty = v => v === null || v === '';
+  const out = inPeriod().filter(r => (f === 'all' || (f === 'problems' ? PROBLEM.has(r.verdict) : r.verdict === f))
+    && (!q || r.id.toLowerCase().includes(q) || r.items.some(i => i[0].toLowerCase().includes(q))));
+  if (k) out.sort((a, b) => empty(a[k]) - empty(b[k]) || (a[k] < b[k] ? -dir : a[k] > b[k] ? dir : 0));
+  return out;
+}
+function reconTable() {
+  const rows = shown(), np = rows.filter(r => PROBLEM.has(r.verdict)).length;
+  $('#reconTable').innerHTML = rows.length
+    ? (np > 1 ? `<p style="margin:0 0 10px"><button class="quiet" data-act="ackAll">把列出的 ${np} 筆問題訂單都標為已確認</button></p>` : '') + ledger(rows.slice(0, UI.limit), true) + (rows.length > UI.limit ? `<p style="margin-top:12px"><button data-act="more">再顯示 200 筆，共 ${rows.length} 筆</button></p>` : '')
+    : '<p class="mute">沒有符合的訂單。</p>';
+}
+
+// ---- 訂單明細（右側抽屜） ----
+function explain(r) {
+  const age = r.date ? Math.floor((Date.now() - Date.parse(r.date)) / 864e5) : null;
+  switch (r.raw) {
+    case '金額不符': return r.cancelled ? `這張訂單已經取消，卻有 ${money(r.got)} 的入帳紀錄，請確認是否需要退回。`
+      : r.diff < 0 ? `實收比應收少 ${money(-r.diff)}。常見原因是優惠券或運費由賣家負擔、部分退款，或是有帳款調整。核對過沒問題，就標為已確認。`
+                   : `實收比應收多 ${money(r.diff)}。可能是平台補貼，或是匯入時手續費欄位選多了。`;
+    case '逾期未入帳': return `這張訂單成立 ${age} 天了，還沒有入帳紀錄。先確認進帳報表的日期範圍有涵蓋到；有的話，帶著訂單編號聯絡平台客服。`;
+    case '未入帳': return age === null ? '還沒有入帳紀錄。' : `成立 ${age} 天，還在 ${DB.lateDays} 天的等待期內。`;
+    case '查無訂單': return '進帳報表裡有這筆錢，但訂單報表裡找不到這張訂單。通常是訂單報表的日期範圍不夠，或是一筆帳款調整。';
+    case '未對帳': return '還沒匯入進帳報表，所以無法判斷有沒有入帳。';
+    default: return '';
+  }
+}
+function openOrder(id) {
+  const r = ROWS.find(x => x.id === id), d = $('#drawer');
+  if (!r) return d.close();
+  const pays = Object.values(DB.payouts).filter(p => p.id === id).sort((a, b) => a.date < b.date ? -1 : 1), why = explain(r);
+  const canAck = PROBLEM.has(r.raw);
+  const cost = r.unknown || r.cancelled ? 0 : r.items.reduce((a, [n, q]) => a + (DB.cost[n] || 0) * q, 0);
+  d.innerHTML = `
+    <div class="row between"><h2>訂單 ${esc(r.id)}</h2><button class="quiet" data-act="closeDrawer">關閉</button></div>
+    <p style="margin:14px 0">${stamp(r.verdict, 'big')}</p>
+    ${why ? `<p>${why}</p>` : ''}
+    ${r.unknown ? '' : `<p class="mute small">${r.date || '沒有日期'}　${esc(r.status)}</p>
+      ${r.items.length ? `<h3>商品</h3><ul class="plain">${r.items.map(([n, q]) => `<li>${esc(n)} × ${q}</li>`).join('')}</ul>` : ''}`}
+    <h3>金額</h3>
+    <dl>${r.unknown ? '' : `<dt>訂單金額</dt><dd>${money(r.total)}</dd><dt>手續費等扣項</dt><dd>${money(-r.fee)}</dd>${r.plus ? `<dt>平台補貼等加項</dt><dd>${signed(r.plus)}</dd>` : ''}`}
+      <div class="total" style="display:contents"><dt>應收</dt><dd>${money(r.due)}</dd></div>
+      ${pays.map(p => `<dt>入帳 ${p.date || '（無日期）'}</dt><dd>${money(p.amt)}</dd>`).join('') || '<dt class="mute">還沒有入帳紀錄</dt><dd></dd>'}
+      ${r.diff === null ? '' : `<div class="total" style="display:contents"><dt>差額</dt><dd class="${Math.abs(r.diff) > DB.tol ? 'red' : ''}">${signed(r.diff)}</dd></div>`}
+      ${cost ? `<dt>商品成本</dt><dd>${money(-cost)}</dd><dt>這張訂單的毛利</dt><dd>${money(r.due - cost)}</dd>` : ''}</dl>
+    <label class="field">備註<textarea data-note="${esc(id)}" placeholder="例如：已問過客服，是運費補貼">${esc(DB.notes[id] || '')}</textarea></label>
+    ${canAck ? `<div class="row actions"><button class="${DB.ack[id] ? 'quiet' : 'primary'}" data-act="ack" data-id="${esc(id)}">${DB.ack[id] ? '取消確認，放回要處理' : '標為已確認'}</button></div>` : ''}`;
+  if (!d.open) d.showModal();
+}
+
+// ---- 匯入 ----
+async function readTables(file) {
+  const wb = /\.csv$/i.test(file.name) ? XLSX.read(decodeText(await file.arrayBuffer()), { type: 'string', raw: true })
+                                       : XLSX.read(await file.arrayBuffer(), { cellDates: true });
+  return wb.SheetNames.map(sheet => ({ file: file.name, sheet, ...toTable(XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: '', raw: true })) }))
+    .filter(t => t.data.length);
+}
+async function handleFiles(files) {
+  if (!window.XLSX) return banner('試算表元件還沒載入，請確認網路連線後重新整理頁面。', 'bad');
+  staged = [];
+  for (const f of files) {
+    try { staged.push(...(await readTables(f)).map(t => stage(t, DB))); }
+    catch (e) { return banner(`讀不了「${f.name}」：${e.message}`, 'bad'); }
+  }
+  if (!staged.length) return banner('檔案裡沒有找到資料列。', 'bad');
+  renderStaged(); $('#dlg').showModal();
+}
+function renderStaged() {
+  $('#staged').innerHTML = staged.map((st, i) => {
+    const opts = sel => '<option value="">（無）</option>' + st.headers.map(h => `<option${h === sel ? ' selected' : ''}>${esc(h)}</option>`).join('');
+    const pickCols = (key, title) => `<details${st.open === key ? ' open' : ''}><summary>${title}，已選 ${st.map[key].length} 欄：${esc(st.map[key].join('、') || '無')}</summary>
+      <div class="fees">${st.headers.map(h => `<label><input type="checkbox" data-i="${i}" data-col="${key}" value="${esc(h)}"${st.map[key].includes(h) ? ' checked' : ''}> ${esc(h)}</label>`).join('')}</div></details>`;
+    const prev = st.kind === 'order' ? normOrders(st.data.slice(0, 40), st.map).slice(0, 3).map(o => `<tr><td>${esc(o.id)}</td><td>${o.date}</td><td>${esc(o.status)}</td><td class="n n1">${money(o.total)}</td><td class="n">${money(o.fee)}</td><td class="n">${money(o.total - o.fee + o.plus)}</td><td class="n">${o.items.length}</td></tr>`)
+               : st.kind === 'payout' ? normPayouts(st.data.slice(0, 40), st.map).slice(0, 3).map(p => `<tr><td>${esc(p.id)}</td><td>${p.date}</td><td class="n n1">${money(p.amt)}</td></tr>`) : [];
+    return `<div class="stage">
+      <div class="row between"><b>${esc(st.file)} › ${esc(st.sheet)}</b><span class="mute small">${st.data.length} 列</span></div>
+      <div class="grid"><label class="field">這張表是<select data-i="${i}" data-k="kind">${Object.entries(KIND).map(([k, v]) => `<option value="${k}"${k === st.kind ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+        ${st.kind === 'skip' ? '' : FIELDS[st.kind].map(([f, label]) => `<label class="field">${label}<select data-i="${i}" data-f="${f}">${opts(st.map[f])}</select></label>`).join('')}</div>
+      ${st.kind === 'order' ? pickCols('fees', '要從訂單金額扣掉的欄位（手續費、賣家負擔的折扣）') + pickCols('adds', '要加回來的欄位（平台補貼）')
+        + '<p class="mute small" style="margin-top:8px">應收 = 訂單金額 − 扣掉的欄位 + 加回的欄位。對不上時，回來這裡調整勾選再匯入一次。</p>' : ''}
+      ${st.kind === 'skip' ? '' : !usable(st) ? '<p class="red small">缺少必要欄位（訂單編號' + (st.kind === 'payout' ? '、入帳金額' : '') + '），這張表不會匯入。</p>'
+        : `<h3>前三筆預覽</h3><div class="scroll"><table class="ledger"><thead>${st.kind === 'order' ? '<tr><th>訂單編號</th><th>日期</th><th>狀態</th><th class="n n1">金額</th><th class="n">扣項</th><th class="n">應收</th><th class="n">商品數</th></tr>' : '<tr><th>訂單編號</th><th>日期</th><th class="n n1">金額</th></tr>'}</thead><tbody>${prev.join('')}</tbody></table></div>`}
+    </div>`;
+  }).join('');
+}
+$('#staged').addEventListener('change', e => {
+  const t = e.target, st = staged[t.dataset.i];
+  if (!st) return;
+  if (t.dataset.k) { st.kind = t.value; st.map = defaults(st.headers, st.kind, DB.map[st.kind]); }
+  else if (t.dataset.f) st.map[t.dataset.f] = t.value;
+  else if (t.dataset.col) { const key = t.dataset.col; st.open = key; st.map[key] = st.headers.filter(h => h === t.value ? t.checked : st.map[key].includes(h)); }
+  renderStaged();
+});
+// 用 submit 而不是 dialog 的 close 事件：close 要等畫面重繪才觸發，分頁在背景時會卡住
+$('#dlg form').addEventListener('submit', e => {
+  if (e.submitter?.value !== 'ok') return;
+  const tot = { order: [0, 0], payout: [0, 0] }, good = staged.filter(usable);
+  // shortcut: 復原點只放在記憶體，重新整理頁面後就沒有；要跨頁保留時改存 localStorage
+  if (good.length) UNDO = JSON.stringify(DB);
+  for (const st of good) { const r = commit(DB, st); tot[st.kind][0] += r.added; tot[st.kind][1] += r.same; }
+  UI.intro = true; UI.view = 'home';
+  save(); refresh();
+  banner(good.length ? `匯入完成。訂單新增 ${tot.order[0]} 張、更新 ${tot.order[1]} 張；入帳紀錄新增 ${tot.payout[0]} 筆、重複略過 ${tot.payout[1]} 筆。` : '沒有可以匯入的表。', good.length ? '' : 'bad', good.length > 0);
+});
+
+function exportXlsx(name, aoa) {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
+  XLSX.writeFile(wb, `${DB.shop}-${name}.xlsx`);
+}
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+const ACT = {
+  go(b) { UI.view = b.dataset.v; if (b.dataset.f) UI.filter = b.dataset.f; UI.limit = 100; banner(''); render(); scrollTo(0, 0); },
+  filter(b) { UI.filter = b.dataset.f; UI.limit = 100; render(); },
+  more() { UI.limit += 200; reconTable(); },
+  sort(b) {
+    const s = UI.sort, k = b.dataset.k;
+    if (s.k !== k) UI.sort = { k, dir: 1 }; else if (s.dir === 1) s.dir = -1; else UI.sort = { k: '', dir: 1 }; // 升冪、降冪、取消
+    reconTable(); $(`#reconTable [data-k="${k}"]`)?.focus();
+  },
+  pick() { $('#pick').click(); },
+  open(b) { openOrder(b.dataset.id); },
+  closeDrawer() { $('#drawer').close(); },
+  ack(b) { const id = b.dataset.id; DB.ack[id] ? delete DB.ack[id] : DB.ack[id] = true; save(); refresh(); openOrder(id); },
+  async copyIds() {
+    const ids = shown().map(r => r.id);
+    try { await navigator.clipboard.writeText(ids.join('\n')); banner(`已複製 ${ids.length} 個訂單編號，可以直接貼給客服。`); }
+    catch { banner('瀏覽器不允許複製，請改用匯出 Excel。', 'bad'); }
+  },
+  async copyMsg() {
+    const msg = csMessage(shown(), DB.lateDays);
+    if (!msg) return banner('目前列出的訂單裡沒有逾期未入帳的。', 'bad');
+    try { await navigator.clipboard.writeText(msg); banner('已複製給客服的訊息，裡面列了逾期未入帳的訂單。'); }
+    catch { banner('瀏覽器不允許複製，請改用匯出 Excel。', 'bad'); }
+  },
+  ackAll() {
+    const ids = shown().filter(r => PROBLEM.has(r.verdict)).map(r => r.id);
+    if (!ids.length || !confirm(`要把列出的 ${ids.length} 筆問題訂單都標為已確認嗎？之後可以一筆一筆取消。`)) return;
+    for (const id of ids) DB.ack[id] = true;
+    save(); refresh(); banner(`已把 ${ids.length} 筆標為已確認。`);
+  },
+  exportRecon() {
+    exportXlsx('對帳明細', [['訂單編號', '訂單日期', '狀態', '訂單金額', '扣項', '加項', '應收', '實收', '差額', '入帳日期', '判定', '備註'],
+      ...shown().map(r => [r.id, r.date, r.status, r.total, r.fee, r.plus, r.due, r.got ?? '', r.diff ?? '', r.paidDate, r.verdict, DB.notes[r.id] || ''])]);
+  },
+  exportMonth() {
+    exportXlsx('月報', [['月份', '訂單數', '取消', '營業額', '扣項', '應收', '商品成本', '毛利', '已入帳', '未入帳', '要處理筆數'],
+      ...MONTHS.map(([m, s]) => [m, s.orders, s.cancelled, s.revenue, s.fee, s.due, s.cost, s.profit, s.got, s.pendingAmt + s.lateAmt, s.problems]),
+      (T => ['合計', T.orders, T.cancelled, T.revenue, T.fee, T.due, T.cost, T.profit, T.got, T.pendingAmt + T.lateAmt, T.problems])(summarize(ROWS, DB.cost))]);
+  },
+  sample() {
+    if (ROWS.length && !confirm('會把範例資料加進現有資料裡，確定嗎？')) return;
+    UNDO = JSON.stringify(DB);
+    for (const t of sampleTables()) commit(DB, stage(t, DB));
+    UI.intro = true; UI.view = 'home';
+    save(); refresh(); banner('已加入範例資料。', '', true);
+  },
+  undo() {
+    if (!UNDO) return banner('沒有可以復原的匯入。', 'bad');
+    DB = JSON.parse(UNDO); UNDO = null; save(); refresh(); banner('已復原到匯入之前的狀態。');
+  },
+  print() { window.print(); },
+  addShop() {
+    const name = $('#newShop').value.trim();
+    if (!name) return banner('請先輸入新賣場的名稱。', 'bad');
+    const id = 's' + Date.now().toString(36);
+    SH.ids.push(id); openShop(id, name); banner(`已新增賣場「${name}」，現在看到的是它的資料。`);
+  },
+  delShop() {
+    if (SH.ids.length < 2 || !confirm(`確定要刪除賣場「${DB.shop}」和它的所有資料嗎？這個動作無法復原。`)) return;
+    const id = SH.cur;
+    SH.ids = SH.ids.filter(x => x !== id); delete SH.names[id]; SH.cur = SH.ids[0];
+    try { localStorage.removeItem(shopKey(id)); } catch {}
+    DB = readShop(SH.cur); UNDO = null; UI.view = 'home'; save(); refresh(); banner('賣場已刪除。');
+  },
+  backup() { download(`${DB.shop}-對帳本備份-${isoDate(new Date())}.json`, JSON.stringify(DB)); },
+  restore() { $('#restore').click(); },
+  clear() {
+    if (!confirm('確定要清空所有訂單和入帳紀錄嗎？這個動作無法復原，建議先下載備份。')) return;
+    DB = { ...blank(), shop: DB.shop }; save(); refresh(); banner('資料已清空。');
+  },
+};
+
+document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) ACT[b.dataset.act](b); });
+document.addEventListener('input', e => { if (e.target.id === 'q') { UI.q = e.target.value; UI.limit = 100; reconTable(); } });
+document.addEventListener('change', e => {
+  const t = e.target, k = t.dataset.set;
+  if (t.id === 'period') { UI.period = t.value; UI.limit = 100; return render(); }
+  if (t.id === 'shopSel') {
+    if (t.value !== '+') return openShop(t.value);
+    t.value = SH.cur; UI.view = 'set'; render(); return $('#newShop').focus();
+  }
+  if (t.dataset.note) { t.value.trim() ? DB.notes[t.dataset.note] = t.value.trim() : delete DB.notes[t.dataset.note]; save(); return render(); }
+  if ('cost' in t.dataset) { // 只更新那一列，不重畫整張表，才不會打斷連續輸入
+    const v = +t.value;
+    v > 0 ? DB.cost[t.dataset.cost] = v : delete DB.cost[t.dataset.cost];
+    save(); t.closest('tr').querySelector('.sub').textContent = v > 0 ? money(v * t.dataset.q) : ''; return costLine();
+  }
+  if (!k) return;
+  if (k === 'theme' || k === 'mode') SH[k] = t.value;
+  else if (k === 'shop') DB.shop = t.value.trim() || '我的賣場';
+  else if (k === 'cancelRe') { try { new RegExp(t.value); DB.cancelRe = t.value || '取消|不成立'; } catch { banner('狀態關鍵字的格式不對，已保留原本的設定。', 'bad'); } }
+  else DB[k] = Math.max(k === 'lateDays' ? 1 : 0, +t.value || 0);
+  save(); refresh();
+});
+$('#drawer').addEventListener('click', e => { if (e.target.id === 'drawer') e.target.close(); }); // 點背景關閉
+$('#pick').addEventListener('change', e => { handleFiles([...e.target.files]); e.target.value = ''; });
+$('#restore').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d || typeof d.orders !== 'object' || typeof d.payouts !== 'object') throw new Error('不是對帳本的備份檔');
+    if (!confirm(`備份裡有 ${Object.keys(d.orders).length} 張訂單，還原會取代目前所有資料，確定嗎？`)) return;
+    DB = { ...blank(), ...d }; save(); refresh(); banner('已從備份還原。');
+  } catch (err) { banner('還原失敗：' + err.message, 'bad'); }
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => refresh()); // 給「跟著系統」用
+addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag'); });
+addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('drag'); });
+addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('drag'); if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]); });
+
+// ================= 自我檢查：網址加 #test，或在主控台呼叫 selfTest() =================
+function selfTest() {
+  const fails = [], ok = (c, m) => c || fails.push(m), now = Date.parse('2026-11-16');
+  ok(num('NT$1,234') === 1234 && num(-5) === -5 && num('') === 0 && num('-') === 0, 'num');
+  ok(isoDate('2026/7/3 14:20') === '2026-07-03' && isoDate(new Date(2026, 0, 9)) === '2026-01-09' && isoDate('x') === '', 'isoDate');
+  ok(isoDate('113/07/01') === '2024-07-01' && isoDate('115年11月6日') === '2026-11-06' && isoDate('11/16 14:20') === '' && isoDate('07/03/26') === '', '民國年');
+  ok(num('(1,234)') === -1234 && num('-56') === -56, '括號負數');
+  ok(decodeText(new Uint8Array([0xA4, 0xA4, 0xA4, 0xE5]).buffer) === '中文' && decodeText(new TextEncoder().encode('訂單').buffer) === '訂單', 'Big5 和 UTF-8');
+  ok(prevMonth('2026-01') === '2025-12' && prevMonth('2026-11') === '2026-10', 'prevMonth');
+  const t = toTable([['賣場報表'], [], ['訂單編號', '訂單狀態', '商品總價', '成交手續費', ''], ['A1', '已完成', '100', '5', 'z'], ['', '', '', '', '']]);
+  ok(t.headers.length === 4 && t.data.length === 1 && t.data[0]['訂單編號'] === 'A1' && !('' in t.data[0]), 'toTable');
+  ok(classify(t.headers) === 'order' && classify(['訂單編號', '撥款金額']) === 'payout' && classify(['姓名', '金額']) === 'skip', 'classify');
+  ok(defaults(t.headers, 'order').total === '商品總價' && defaults(t.headers, 'order').fees.join() === '成交手續費', 'defaults');
+
+  const db = blank(), m = { id: 'id', date: 'd', status: 'st', total: 'amt', fees: ['f1', 'f2'], product: 'p', qty: 'q' };
+  const orders = [
+    { id: 'A', d: '2026-11-01', st: '已完成', amt: '1,000', f1: '50', f2: '-20', p: '襪子', q: '2' },
+    { id: 'A', d: '2026-11-01', st: '已完成', amt: '1,000', f1: '50', f2: '-20', p: '帽子', q: '1' }, // 同一張訂單的第二個商品，金額不能重複算
+    { id: 'B', d: '2026-11-02', st: '已完成', amt: 500, f1: 25, f2: 10, p: '襪子', q: 1 },
+    { id: 'C', d: '2026-11-10', st: '已完成', amt: 300, f1: 15, f2: 6, p: '帽子', q: 1 },
+    { id: 'D', d: '2026-11-03', st: '已取消', amt: 200, f1: 0, f2: 0, p: '襪子', q: 5 },
+    { id: 'E', d: '2026-10-01', st: '已完成', amt: 100, f1: 5, f2: 2, p: '襪子', q: 1 },
+  ];
+  const pay = { file: 'p', sheet: 's', kind: 'payout', map: { id: 'id', paid: 'paid', pdate: 'pd' },
+                data: [{ id: 'A', paid: '930', pd: '2026-11-06' }, { id: 'B', paid: 400, pd: '2026-11-07' }, { id: 'Z', paid: 88, pd: '2026-11-07' }, { id: '', paid: 5 }] };
+  commit(db, { file: 'o', sheet: 's', kind: 'order', map: m, data: orders });
+  const first = commit(db, pay), again = commit(db, pay);
+  ok(first.added === 3 && again.added === 0 && again.same === 3, '重複匯入不能重複算');
+  let rows = reconcile(db, now);
+  const v = id => rows.find(x => x.id === id).verdict;
+  ok(v('A') === '已入帳' && v('B') === '金額不符' && v('C') === '未入帳' && v('D') === '已取消' && v('E') === '逾期未入帳' && v('Z') === '查無訂單', '判定');
+  ok(rows[0].verdict === '金額不符' && rows.at(-1).verdict === '已取消', '排序');
+  const s = summarize(rows);
+  ok(s.orders === 4 && s.cancelled === 1 && s.revenue === 1900 && s.fee === 133 && s.due === 1767 && s.got === 1418
+    && s.pendingAmt === 279 && s.lateAmt === 93 && s.mismatchAmt === -65 && s.problems === 3, '摘要 ' + JSON.stringify(s));
+  db.ack.B = db.ack.Z = true; rows = reconcile(db, now);
+  ok(v('B') === '已確認' && v('Z') === '已確認' && summarize(rows).problems === 1, '標為已確認');
+  ok(reconcile({ ...db, payouts: {} }, now).every(r => r.verdict === '未對帳' || r.verdict === '已取消'), '沒有進帳資料');
+
+  const o2 = normOrders([{ id: 'P', amt: 100, f1: 10, a1: '5', p: '襪子', q: 2 }], { id: 'id', total: 'amt', fees: ['f1'], adds: ['a1'], product: 'p', qty: 'q' });
+  const r2 = reconcile({ ...blank(), orders: { P: o2[0] }, payouts: { k: { id: 'P', date: '', amt: 95 } } }, now), s2 = summarize(r2, { '襪子': 20 });
+  ok(r2[0].due === 95 && r2[0].verdict === '已入帳' && s2.cost === 40 && s2.profit === 55, '加項和成本');
+
+  const dg = diagnose([1, 2, 3, 4].map(i => ({ verdict: '金額不符', total: 100 * i, diff: i < 4 ? -60 : -5 })));
+  ok(dg && dg.kind === 'amount' && dg.value === -60 && dg.n === 3 && dg.of === 4, '差額規律：固定金額');
+  const dp = diagnose([1, 2, 3].map(i => ({ verdict: '金額不符', total: 1000 * i, diff: -20 * i })));
+  ok(dp && dp.kind === 'percent' && dp.value === -2, '差額規律：比例');
+  ok(diagnose([{ verdict: '金額不符', total: 1, diff: 1 }]) === null, '差額規律：太少不猜');
+  const cm = csMessage([{ id: 'A1', date: '2026-10-01', due: 713, verdict: '逾期未入帳' }, { id: 'B2', verdict: '已入帳', due: 5 }], 14);
+  ok(cm.includes('A1') && !cm.includes('B2') && cm.includes('713') && csMessage([], 14) === '', '客服訊息');
+
+  const sdb = blank();
+  for (const tb of sampleTables(now)) commit(sdb, stage(tb, sdb));
+  const ss = summarize(reconcile(sdb, now));
+  ok(ss.orders === 68 && ss.cancelled === 4 && ss.mismatchN === 4 && ss.lateN === 3 && ss.pendingN === 5 && ss.unknownN === 1, '範例資料 ' + JSON.stringify(ss));
+  return fails;
+}
+
+load(); refresh();
+if (location.hash.startsWith('#demo')) { if (!ROWS.length) ACT.sample(); const v = location.hash.slice(6); if (VIEWS[v]) { UI.view = v; render(); } }
+if (location.hash === '#test') { const f = selfTest(); banner(f.length ? '自我檢查失敗：' + f.join('；') : '自我檢查通過', f.length ? 'bad' : ''); }
+</script>
+</body>
+</html>
