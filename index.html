@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>對帳本：平台撥款，每一筆都對過了嗎？</title>
-<meta name="description" content="把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。資料只存在你的電腦。">
+<meta name="description" content="免費的對帳工具。把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。資料只存在你的電腦。">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; form-action 'none'; base-uri 'none'">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://pagani951221-tech.github.io/duizhangben/">
 <meta property="og:title" content="對帳本：平台撥款，每一筆都對過了嗎？">
-<meta property="og:description" content="把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。">
+<meta property="og:description" content="免費的對帳工具。把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。">
 <meta property="og:image" content="https://pagani951221-tech.github.io/duizhangben/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f5bea'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h8' stroke='%23fff' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='21' r='3' fill='%23ff8a80'/%3E%3C/svg%3E">
@@ -97,7 +97,7 @@
   .safe ul{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px 40px}
   .safe li{border-top:1px solid color-mix(in srgb,var(--paper) 35%,transparent);padding-top:12px}
 
-  .price{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;max-width:760px}
+  .price{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
   .price > div{background:var(--sheet);border:1px solid var(--rule);border-radius:16px;padding:24px}
   .price .amt{font:900 40px/1.2 var(--sans);font-variant-numeric:tabular-nums;margin:6px 0}
   .price .amt small{font:500 16px var(--sans);color:var(--mute);margin-left:4px}
@@ -132,7 +132,7 @@
 <div class="wrap">
   <header class="top">
     <a class="logo" href="#top" id="top">對帳本</a>
-    <a class="btn small" href="recon.html#demo">看示範</a>
+    <a class="btn small" href="recon.html">免費開始用</a>
   </header>
 
   <main>
@@ -141,10 +141,10 @@
       <h1>平台撥款，<br>每一筆都對過了嗎？</h1>
       <p class="lead">把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。不用再開兩個 Excel，一筆一筆比訂單編號。</p>
       <div class="cta">
-        <a class="btn primary" href="#contact">找我試用</a>
+        <a class="btn primary" href="recon.html">免費開始用</a>
         <a class="btn" href="recon.html#demo">先看示範</a>
       </div>
-      <p class="fine">資料只存在你自己的電腦。不用註冊，也不用給任何人你的賣場密碼。</p>
+      <p class="fine">免費使用，不用註冊。資料只存在你自己的電腦，也不用給任何人你的賣場密碼。</p>
     </div>
 
     <figure class="mock" aria-label="對帳本畫面示意，使用示範資料">
@@ -227,8 +227,18 @@
 
 <div class="wrap">
   <section id="price">
-    <h2>費用</h2>
+    <h2>工具免費，需要幫忙才收費</h2>
     <div class="price">
+      <div>
+        <h3>自己用</h3>
+        <p class="amt">NT$0</p>
+        <ul class="mute">
+          <li>全部功能都能用</li>
+          <li>不用註冊，打開就能用</li>
+          <li>匯入時會自動幫你試算公式</li>
+        </ul>
+        <p style="margin:18px 0 0"><a class="btn primary" href="recon.html">免費開始用</a></p>
+      </div>
       <div>
         <h3>第一次設定</h3>
         <p class="amt">NT$1,500<small>一次</small></p>
@@ -244,28 +254,28 @@
         <ul class="mute">
           <li>平台報表格式變了，幫你調整</li>
           <li>有問題可以直接問</li>
-          <li>新功能持續更新</li>
         </ul>
       </div>
     </div>
-    <p class="trial">先免費幫你對一個月的帳，覺得有用再談。</p>
+    <p class="trial">不確定需不需要有人幫忙？先免費幫你對一個月的帳，覺得有用再談。</p>
   </section>
 
   <section>
     <h2>常見問題</h2>
-    <details><summary>一定要是蝦皮嗎？</summary><p>不一定。只要平台能匯出訂單報表和入帳報表，裡面有訂單編號和金額，就能用。第一次設定時會幫你把欄位對好。</p></details>
+    <details><summary>真的免費嗎？</summary><p>是。工具本身免費，全部功能都能用，也不用註冊。只有你想要有人幫你設定、校正，或是教你怎麼用的時候才收費。</p></details>
+    <details><summary>一定要是蝦皮嗎？</summary><p>不一定。只要平台能匯出訂單報表和入帳報表，裡面有訂單編號和金額，就能用。匯入時程式會自動判斷欄位，你也可以自己調整。</p></details>
     <details><summary>需要安裝什麼嗎？</summary><p>不用。用電腦的 Chrome 或 Edge 打開檔案就能用，沒有網路也可以。</p></details>
-    <details><summary>我不太會用電腦，可以嗎？</summary><p>可以。第一次會陪你做一遍，之後每個月就是匯出兩個檔案、拖進來，裡面也有說明頁。</p></details>
+    <details><summary>我不太會用電腦，可以嗎？</summary><p>可以。每個月就是匯出兩個檔案、拖進來，裡面也有說明頁。想要有人帶的話，第一次設定會陪你做一遍。</p></details>
     <details><summary>匯入錯檔案會不會把帳弄亂？</summary><p>不會。匯入之後可以一鍵復原，同一份報表匯入兩次也不會重複計算。</p></details>
     <details><summary>手機可以用嗎？</summary><p>可以用手機看結果。匯出報表和拖檔案這兩步，建議在電腦上做。</p></details>
   </section>
 
   <section class="end" id="contact">
     <h2>拿你上個月的報表來，<br>看看有沒有漏掉的錢。</h2>
-    <p class="lead">不用先付錢，也不用準備什麼。把兩份報表匯出來，我們一起對一次。</p>
+    <p class="lead">自己來不用付錢：打開對帳本，把兩份報表拖進去就好。想要有人陪你做第一次，再找我。</p>
     <div class="cta">
-      <a class="btn primary todo" data-contact href="#contact">用 LINE 聯絡我</a>
-      <a class="btn" href="recon.html#demo">先自己玩玩看示範</a>
+      <a class="btn primary" href="recon.html">免費開始用</a>
+      <a class="btn todo" data-contact href="#contact">用 LINE 找我幫忙</a>
     </div>
   </section>
 
