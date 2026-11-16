@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>對帳本</title>
+<meta name="description" content="把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張金額對不上。資料只存在你的瀏覽器。">
+<!-- 這條規則讓瀏覽器擋掉這個頁面的所有對外連線（connect-src 'none'），報表內容不可能被傳出去 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta property="og:type" content="website">
+<meta property="og:title" content="對帳本">
+<meta property="og:description" content="把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張金額對不上。">
+<meta property="og:image" content="https://pagani951221-tech.github.io/duizhangben/style-2-clean.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f5bea'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h8' stroke='%23fff' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='21' r='3' fill='%23ff8a80'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
@@ -14,7 +22,7 @@
     --rule:#bfd2df;--blue:#2c4f8f;--on-blue:#fff;--red:#c2301c;--green:#1c7446;--amber:#8a5a00;
     --spine:#173a2e;--on-spine:#e6efe8;--on-red:#fff;--r:4px;--rb:4px;
     --serif:"Noto Serif TC","Songti TC","PMingLiU",serif;--sans:"Noto Sans TC",system-ui,"Microsoft JhengHei",sans-serif}
-  :root[data-mode=dark]{color-scheme:dark;
+  :root[data-mode=dark]{color-scheme:dark;--on-red:#2a0d08;
     --paper:#0f1713;--sheet:#151f1a;--soft:#1d2a24;--ink:#e3ebe5;--mute:#9db0a5;
     --rule:#2a3a44;--blue:#8fb0f0;--on-blue:#0c1626;--red:#ff8f7d;--green:#5fd39a;--amber:#f0c060;
     --spine:#0a110e;--on-spine:#dfe8e2}
@@ -41,6 +49,7 @@
   .spine nav button{border:0;background:none;color:inherit;text-align:left;padding:9px 14px;border-radius:4px 0 0 4px;font-size:15px}
   .spine nav button[aria-current]{background:var(--paper);color:var(--ink);font-weight:700;box-shadow:inset 4px 0 0 var(--red)}
   .spine-note{margin:auto 14px 0;font-size:12px;line-height:1.5;opacity:.85}
+  #nav button[data-n]:not([data-n=""])::after{content:attr(data-n);margin-left:8px;font:700 12px/1.6 var(--sans);padding:0 7px;border-radius:999px;background:var(--red);color:var(--on-red)}
   .page{flex:1;min-width:0}
   .bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:14px clamp(16px,4vw,44px);border-bottom:1px solid var(--rule)}
   .bar .shop{font:900 18px var(--serif)}
@@ -232,6 +241,7 @@
     </header>
     <main>
       <div id="banner" role="status" aria-live="polite"></div>
+      <div id="demoBar" class="notice" style="margin:0 0 16px" hidden>這些是示範資料，不是你的帳。 <button class="quiet" data-act="endDemo">清掉，開始用我的報表</button></div>
       <section id="v-home"></section>
       <section id="v-recon" hidden></section>
       <section id="v-month" hidden></section>
@@ -427,7 +437,77 @@ function decodeText(buf) {
   catch { return new TextDecoder('big5').decode(buf); }
 }
 
-const blank = () => ({ shop: '我的賣場', tol: 1, lateDays: 14, cancelRe: '取消|不成立', map: {}, orders: {}, payouts: {}, ack: {}, notes: {}, cost: {}, imports: [] });
+// 從瀏覽器儲存空間或備份檔讀進來的資料不一定可信：逐欄檢查型別，不合的丟掉或給預設值
+function sanitize(d) {
+  const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {}, strs = a => (Array.isArray(a) ? a : []).map(String);
+  const day = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '', each = (o, fn) => Object.fromEntries(Object.entries(obj(o)).map(fn));
+  const s = obj(d), b = blank();
+  return {
+    shop: String(s.shop ?? '').slice(0, 60) || b.shop,
+    tol: s.tol === undefined ? b.tol : Math.max(0, +s.tol || 0),
+    lateDays: s.lateDays === undefined ? b.lateDays : Math.max(1, Math.round(+s.lateDays) || b.lateDays),
+    cancelRe: String(s.cancelRe ?? b.cancelRe),
+    map: Object.fromEntries(['order', 'payout'].filter(k => obj(s.map)[k]).map(k => {
+      const m = obj(obj(s.map)[k]);
+      return [k, { ...Object.fromEntries(FIELDS[k].map(([f]) => [f, String(m[f] ?? '')])), ...(k === 'order' ? { fees: strs(m.fees), adds: strs(m.adds) } : {}) }];
+    })),
+    orders: each(s.orders, ([id, x]) => { x = obj(x); return [id, { id, date: day(x.date), status: String(x.status ?? ''), total: +x.total || 0, fee: +x.fee || 0, plus: +x.plus || 0,
+      items: (Array.isArray(x.items) ? x.items : []).filter(Array.isArray).map(i => [String(i[0]), +i[1] || 0]) }]; }),
+    payouts: each(s.payouts, ([k, x]) => { x = obj(x); return [k, { id: String(x.id ?? ''), date: day(x.date), amt: +x.amt || 0 }]; }),
+    ack: Object.fromEntries(Object.entries(obj(s.ack)).filter(x => x[1]).map(x => [x[0], true])),
+    notes: each(s.notes, ([k, v]) => [k, String(v)]),
+    cost: Object.fromEntries(Object.entries(obj(s.cost)).map(([k, v]) => [k, +v || 0]).filter(x => x[1] > 0)),
+    imports: (Array.isArray(s.imports) ? s.imports : []).slice(0, 20).map(i => { i = obj(i); return { name: String(i.name ?? ''), kind: i.kind === 'payout' ? 'payout' : 'order', at: String(i.at ?? '').slice(0, 24), added: +i.added || 0, same: +i.same || 0 }; }),
+    demo: !!s.demo,
+  };
+}
+
+const isMoney = v => typeof v === 'number' || /^\(?-?(?:NT)?\$?[\d,]+(?:\.\d+)?\)?$/.test(String(v).trim());
+
+// 用已知的入帳金額反推公式：試每個金額欄位當訂單金額、扣項或加項，找出對得上最多張的組合。
+// paid 是 Map(訂單編號 → 實際入帳金額)。回傳建議的公式、它對得上幾張（hit）、原本的公式對得上幾張（before）
+function calibrate(data, m, paid, tol = 1) {
+  const seen = new Set(), rows = [];
+  for (const r of data) { const id = String(r[m.id] ?? '').trim(); if (id && paid.has(id) && !seen.has(id)) { seen.add(id); rows.push([r, paid.get(id)]); } }
+  if (rows.length < 3) return null;
+  // shortcut: 只拿前 300 張來試，夠找出規律也不會卡住畫面；資料很雜時改成隨機抽樣
+  const sample = rows.slice(0, 300), P = sample.map(x => x[1]), skip = new Set([m.id, m.qty, m.date, m.status, m.product]);
+  const cand = Object.keys(data[0]).filter(h => !skip.has(h) && sample.filter(([r]) => isMoney(r[h])).length >= sample.length * 0.8);
+  const cur = { total: m.total, fees: [...(m.fees || [])], adds: [...(m.adds || [])] }, V = {};
+  for (const h of new Set([...cand, cur.total, ...cur.fees, ...cur.adds])) if (h) V[h] = sample.map(([r]) => num(r[h]));
+  const score = f => { // 回傳 [對得上的張數, 總誤差]
+    let hit = 0, err = 0;
+    for (let i = 0; i < P.length; i++) {
+      let v = V[f.total][i];
+      for (const h of f.fees) v -= Math.abs(V[h][i]);
+      for (const h of f.adds) v += Math.abs(V[h][i]);
+      const d = Math.abs(v - P[i]); err += d; if (d <= tol) hit++;
+    }
+    return [hit, err];
+  };
+  // 每一步挑一個讓總誤差降最多的欄位加進去（或拿掉），直到不再進步。用誤差而不是張數來爬，才不會卡在「加一欄還是 0 張」的平地
+  const climb = f => {
+    let [hit, err] = score(f);
+    for (let step = 0; step < 8; step++) {
+      let best = null;
+      for (const h of cand) {
+        if (h === f.total) continue;
+        const tries = f.fees.includes(h) ? [{ ...f, fees: f.fees.filter(x => x !== h) }] : f.adds.includes(h) ? [{ ...f, adds: f.adds.filter(x => x !== h) }]
+                    : [{ ...f, fees: [...f.fees, h] }, { ...f, adds: [...f.adds, h] }];
+        for (const t of tries) { const [n, e] = score(t); if (e < err - 1e-9 && (!best || e < best.err)) best = { f: t, hit: n, err: e }; }
+      }
+      if (!best) break;
+      ({ f, hit, err } = best);
+    }
+    return { ...f, hit, err };
+  };
+  const before = cur.total ? score(cur)[0] : 0;
+  let best = cur.total ? climb(cur) : { ...cur, hit: -1, err: Infinity };
+  for (const t of cand) { const c = climb({ total: t, fees: [], adds: [] }); if (c.hit > best.hit) best = c; }
+  return { total: best.total, fees: best.fees, adds: best.adds, hit: best.hit, before, n: P.length };
+}
+
+const blank = () => ({ shop: '我的賣場', tol: 1, lateDays: 14, cancelRe: '取消|不成立', map: {}, orders: {}, payouts: {}, ack: {}, notes: {}, cost: {}, imports: [], demo: false });
 
 const prevMonth = m => { const d = new Date(m + '-01T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); };
 
@@ -468,7 +548,7 @@ function banner(msg, cls = '', undo = false) {
   const b = $('#banner'); b.textContent = msg; b.className = cls;
   if (undo) b.insertAdjacentHTML('beforeend', ' <button class="quiet" data-act="undo">復原這次匯入</button>');
 }
-const readShop = id => { try { return { ...blank(), ...JSON.parse(localStorage.getItem(shopKey(id)) || '{}') }; } catch { return blank(); } };
+const readShop = id => { try { return sanitize(JSON.parse(localStorage.getItem(shopKey(id)) || '{}')); } catch { return blank(); } };
 function load() {
   try {
     const idx = JSON.parse(localStorage.getItem(SHOPS) || 'null'), old = localStorage.getItem(STORE);
@@ -490,6 +570,8 @@ function save() {
   catch { banner('資料存不進瀏覽器（可能太大或是無痕模式），關掉頁面後會消失。請到「設定」下載備份。', 'bad'); }
 }
 
+// 瀏覽器給每個網站的 localStorage 大約 520 萬個字元，算出已經用了幾成
+const usage = () => { try { let n = 0; for (const k of Object.keys(localStorage)) n += k.length + localStorage.getItem(k).length; return n / 5.2e6; } catch { return 0; } };
 const hasCost = () => Object.keys(DB.cost).length > 0;
 const inPeriod = () => UI.period ? ROWS.filter(r => r.date.startsWith(UI.period)) : ROWS;
 const stampCls = v => PROBLEM.has(v) ? 'bad' : v === '未入帳' || v === '未對帳' ? 'wait' : v === '已取消' ? 'off' : 'ok';
@@ -509,6 +591,9 @@ function refresh() {
   $('#shopSel').innerHTML = SH.ids.map(id => `<option value="${id}"${id === SH.cur ? ' selected' : ''}>${esc(id === SH.cur ? DB.shop : SH.names[id] || '賣場')}</option>`).join('')
     + '<option value="+">＋ 新增賣場</option>';
   $('#fresh').textContent = DB.imports.length ? `上次匯入 ${DB.imports[0].at.slice(0, 10)}` : '';
+  const np = summarize(ROWS).problems, nb = $('#nav [data-v=recon]');
+  nb.dataset.n = np || ''; nb.setAttribute('aria-label', np ? `對帳，${np} 筆要處理` : '對帳');
+  $('#demoBar').hidden = !DB.demo;
   render();
 }
 function render() {
@@ -529,7 +614,7 @@ function tableHead(sortable) {
 }
 function rowHtml(r) {
   return `<tr><td><button class="idlink" data-act="open" data-id="${esc(r.id)}">${esc(r.id)}</button>${DB.notes[r.id] ? ' <span class="mute small" title="有備註">✎</span>' : ''}</td>
-    <td>${r.date}</td><td>${esc(r.status)}</td>
+    <td>${esc(r.date)}</td><td>${esc(r.status)}</td>
     <td class="n n1">${r.unknown ? '' : money(r.total)}</td><td class="n">${r.unknown ? '' : money(r.fee)}</td><td class="n">${r.unknown ? '' : money(r.due)}</td>
     <td class="n">${r.got === null ? '' : money(r.got)}</td><td class="n ${r.diff && Math.abs(r.diff) > DB.tol ? 'red' : ''}">${r.diff === null ? '' : signed(r.diff)}</td>
     <td>${stamp(r.verdict)}</td></tr>`;
@@ -660,10 +745,10 @@ const VIEWS = {
           ${row('已取消', '訂單狀態是取消或不成立，而且沒有入帳。', '不用處理，不算進營業額。')}
         </tbody></table></div></div>
       <div class="sheet"><h2 class="head">常見問題</h2><dl class="help">
-        <dt>應收是怎麼算的？</dt><dd>訂單金額，減掉你勾選的扣項（手續費、賣家負擔的折扣），再加上你勾選的加項（平台補貼）。勾選是在匯入時的確認畫面裡調整。</dd>
+        <dt>應收是怎麼算的？</dt><dd>訂單金額，減掉你勾選的扣項（手續費、賣家負擔的折扣），再加上你勾選的加項（平台補貼）。勾選是在匯入時的確認畫面裡調整。訂單和進帳報表一起匯入時，確認畫面會用實際入帳金額試算，直接建議最對得上的公式。</dd>
         <dt>幾乎每張都顯示金額不符怎麼辦？</dt><dd>代表公式少算或多算了某個欄位。點一張訂單看差額，對照報表裡哪一欄剛好是這個數字，重新匯入訂單報表，把那一欄勾進扣項或加項。差額有共同規律時，對帳頁上方會直接提示你差了多少。</dd>
         <dt>匯入錯檔案了怎麼辦？</dt><dd>匯入完成的訊息旁邊有「復原這次匯入」，設定頁也有。重新整理或關掉頁面之後就不能復原，發現不對請馬上按。</dd>
-        <dt>資料存在哪裡？</dt><dd>只存在這台電腦的這個瀏覽器裡，不會上傳。清除瀏覽器資料會一起清掉，請定期到「設定」下載備份。換電腦時用備份檔還原。</dd>
+        <dt>資料存在哪裡？</dt><dd>只存在這台電腦的這個瀏覽器裡，不會上傳。這個頁面還設了瀏覽器層級的規則，禁止它對外傳送任何資料。清除瀏覽器資料會一起清掉，請定期到「設定」下載備份。換電腦時用備份檔還原。</dd>
         <dt>我的報表是 CSV，或日期是民國年，可以嗎？</dt><dd>可以。Excel 和 CSV 都能讀，CSV 不管是 UTF-8 還是 Big5 編碼都行，民國年日期會自動換算。</dd>
         <dt>可以用在蝦皮以外的平台嗎？</dt><dd>可以。只要訂單報表有訂單編號和金額，進帳報表有訂單編號和入帳金額，匯入時把欄位對應選好就行。</dd>
         <dt>我有好幾個賣場怎麼辦？</dt><dd>到「設定」新增賣場。每個賣場的資料各自獨立，從上方的賣場選單切換。</dd>
@@ -687,7 +772,8 @@ const VIEWS = {
           ${SH.ids.length > 1 ? '<button class="danger" data-act="delShop">刪除目前這個賣場</button>' : ''}</div></div>
       <div class="sheet"><h2 class="head">資料</h2>
         <p>目前有 ${Object.keys(DB.orders).length} 張訂單、${Object.keys(DB.payouts).length} 筆入帳紀錄，只存在這台電腦的這個瀏覽器裡。換電腦或清除瀏覽器資料之前，請先下載備份。</p>
-        <div class="row">${UNDO ? '<button data-act="undo">復原上一次匯入</button>' : ''}<button data-act="backup">下載備份</button><button data-act="restore">從備份還原</button><button class="quiet" data-act="sample">加入範例資料</button><button class="danger" data-act="clear">清空所有資料</button></div></div>
+        <p class="mute small">瀏覽器給的儲存空間已使用約 ${Math.max(1, Math.round(usage() * 100))}%。</p>
+        <div class="row">${UNDO ? '<button data-act="undo">復原上一次匯入</button>' : ''}<button data-act="backup">下載備份</button><button data-act="restore">從備份還原</button>${ROWS.length ? '' : '<button class="quiet" data-act="sample">載入示範資料</button>'}<button class="danger" data-act="clear">清空所有資料</button></div></div>
       <div class="sheet"><h2 class="head">目前記住的欄位對應</h2>
         <p class="mute small">每次匯入時都可以調整，最後一次的選擇會記在這裡。</p>
         ${['order', 'payout'].map(k => DB.map[k] ? `<h3>${KIND[k]}</h3><ul class="plain small">${FIELDS[k].map(([f, label]) => `<li>${label}：${esc(DB.map[k][f] || '（無）')}</li>`).join('')}
@@ -739,7 +825,7 @@ function openOrder(id) {
     <div class="row between"><h2>訂單 ${esc(r.id)}</h2><button class="quiet" data-act="closeDrawer">關閉</button></div>
     <p style="margin:14px 0">${stamp(r.verdict, 'big')}</p>
     ${why ? `<p>${why}</p>` : ''}
-    ${r.unknown ? '' : `<p class="mute small">${r.date || '沒有日期'}　${esc(r.status)}</p>
+    ${r.unknown ? '' : `<p class="mute small">${esc(r.date) || '沒有日期'}　${esc(r.status)}</p>
       ${r.items.length ? `<h3>商品</h3><ul class="plain">${r.items.map(([n, q]) => `<li>${esc(n)} × ${q}</li>`).join('')}</ul>` : ''}`}
     <h3>金額</h3>
     <dl>${r.unknown ? '' : `<dt>訂單金額</dt><dd>${money(r.total)}</dd><dt>手續費等扣項</dt><dd>${money(-r.fee)}</dd>${r.plus ? `<dt>平台補貼等加項</dt><dd>${signed(r.plus)}</dd>` : ''}`}
@@ -761,6 +847,8 @@ async function readTables(file) {
 }
 async function handleFiles(files) {
   if (!window.XLSX) return banner('試算表元件還沒載入，請確認網路連線後重新整理頁面。', 'bad');
+  const odd = files.find(f => !/\.(xlsx|xls|csv)$/i.test(f.name));
+  if (odd) return banner(`「${odd.name}」不是報表檔。請匯出成 Excel（.xlsx）或 CSV 再拖進來。`, 'bad');
   staged = [];
   for (const f of files) {
     try { staged.push(...(await readTables(f)).map(t => stage(t, DB))); }
@@ -769,19 +857,33 @@ async function handleFiles(files) {
   if (!staged.length) return banner('檔案裡沒有找到資料列。', 'bad');
   renderStaged(); $('#dlg').showModal();
 }
+// 已知的入帳金額：資料庫裡的，加上這次一起拖進來、還沒匯入的進帳報表。示範資料不算
+function paidLookup() {
+  const paid = new Map(), add = p => paid.set(p.id, (paid.get(p.id) || 0) + p.amt);
+  if (!DB.demo) Object.values(DB.payouts).forEach(add);
+  for (const st of staged) if (st.kind === 'payout' && usable(st))
+    for (const p of normPayouts(st.data, st.map)) if (DB.demo || !DB.payouts[[p.id, p.date, p.amt, st.sheet].join('|')]) add(p);
+  return paid;
+}
 function renderStaged() {
+  const paid = paidLookup(), same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
   $('#staged').innerHTML = staged.map((st, i) => {
     const opts = sel => '<option value="">（無）</option>' + st.headers.map(h => `<option${h === sel ? ' selected' : ''}>${esc(h)}</option>`).join('');
     const pickCols = (key, title) => `<details${st.open === key ? ' open' : ''}><summary>${title}，已選 ${st.map[key].length} 欄：${esc(st.map[key].join('、') || '無')}</summary>
       <div class="fees">${st.headers.map(h => `<label><input type="checkbox" data-i="${i}" data-col="${key}" value="${esc(h)}"${st.map[key].includes(h) ? ' checked' : ''}> ${esc(h)}</label>`).join('')}</div></details>`;
     const prev = st.kind === 'order' ? normOrders(st.data.slice(0, 40), st.map).slice(0, 3).map(o => `<tr><td>${esc(o.id)}</td><td>${o.date}</td><td>${esc(o.status)}</td><td class="n n1">${money(o.total)}</td><td class="n">${money(o.fee)}</td><td class="n">${money(o.total - o.fee + o.plus)}</td><td class="n">${o.items.length}</td></tr>`)
                : st.kind === 'payout' ? normPayouts(st.data.slice(0, 40), st.map).slice(0, 3).map(p => `<tr><td>${esc(p.id)}</td><td>${p.date}</td><td class="n n1">${money(p.amt)}</td></tr>`) : [];
+    const fit = st.kind === 'order' && usable(st) ? calibrate(st.data, st.map, paid, DB.tol) : null;
+    const better = fit && fit.hit > fit.before && !(fit.total === st.map.total && same(fit.fees, st.map.fees) && same(fit.adds, st.map.adds));
+    const fitHtml = !fit ? '' : `<p class="notice" style="margin:10px 0 0">照目前的公式，進帳報表裡找得到的 ${fit.n} 張訂單有 ${fit.before} 張對得上。${better
+      ? `試過所有金額欄位後，有一個公式可以讓 ${fit.hit} 張對上：訂單金額用「${esc(fit.total)}」${fit.fees.length ? `，扣掉「${esc(fit.fees.join('、'))}」` : ''}${fit.adds.length ? `，加回「${esc(fit.adds.join('、'))}」` : ''}。
+         <button type="button" class="quiet" data-act="applyFit" data-i="${i}">套用這個公式</button>` : ''}</p>`;
     return `<div class="stage">
       <div class="row between"><b>${esc(st.file)} › ${esc(st.sheet)}</b><span class="mute small">${st.data.length} 列</span></div>
       <div class="grid"><label class="field">這張表是<select data-i="${i}" data-k="kind">${Object.entries(KIND).map(([k, v]) => `<option value="${k}"${k === st.kind ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
         ${st.kind === 'skip' ? '' : FIELDS[st.kind].map(([f, label]) => `<label class="field">${label}<select data-i="${i}" data-f="${f}">${opts(st.map[f])}</select></label>`).join('')}</div>
       ${st.kind === 'order' ? pickCols('fees', '要從訂單金額扣掉的欄位（手續費、賣家負擔的折扣）') + pickCols('adds', '要加回來的欄位（平台補貼）')
-        + '<p class="mute small" style="margin-top:8px">應收 = 訂單金額 − 扣掉的欄位 + 加回的欄位。對不上時，回來這裡調整勾選再匯入一次。</p>' : ''}
+        + '<p class="mute small" style="margin-top:8px">應收 = 訂單金額 − 扣掉的欄位 + 加回的欄位。對不上時，回來這裡調整勾選再匯入一次。</p>' + fitHtml : ''}
       ${st.kind === 'skip' ? '' : !usable(st) ? '<p class="red small">缺少必要欄位（訂單編號' + (st.kind === 'payout' ? '、入帳金額' : '') + '），這張表不會匯入。</p>'
         : `<h3>前三筆預覽</h3><div class="scroll"><table class="ledger"><thead>${st.kind === 'order' ? '<tr><th>訂單編號</th><th>日期</th><th>狀態</th><th class="n n1">金額</th><th class="n">扣項</th><th class="n">應收</th><th class="n">商品數</th></tr>' : '<tr><th>訂單編號</th><th>日期</th><th class="n n1">金額</th></tr>'}</thead><tbody>${prev.join('')}</tbody></table></div>`}
     </div>`;
@@ -801,10 +903,13 @@ $('#dlg form').addEventListener('submit', e => {
   const tot = { order: [0, 0], payout: [0, 0] }, good = staged.filter(usable);
   // shortcut: 復原點只放在記憶體，重新整理頁面後就沒有；要跨頁保留時改存 localStorage
   if (good.length) UNDO = JSON.stringify(DB);
+  // 匯入真的報表時，示範資料要先清掉，不能和真的帳混在一起
+  const wasDemo = good.length > 0 && DB.demo;
+  if (wasDemo) DB = { ...blank(), shop: DB.shop, tol: DB.tol, lateDays: DB.lateDays, cancelRe: DB.cancelRe };
   for (const st of good) { const r = commit(DB, st); tot[st.kind][0] += r.added; tot[st.kind][1] += r.same; }
   UI.intro = true; UI.view = 'home';
   save(); refresh();
-  banner(good.length ? `匯入完成。訂單新增 ${tot.order[0]} 張、更新 ${tot.order[1]} 張；入帳紀錄新增 ${tot.payout[0]} 筆、重複略過 ${tot.payout[1]} 筆。` : '沒有可以匯入的表。', good.length ? '' : 'bad', good.length > 0);
+  banner(good.length ? `${wasDemo ? '示範資料已自動清掉。' : ''}匯入完成。訂單新增 ${tot.order[0]} 張、更新 ${tot.order[1]} 張；入帳紀錄新增 ${tot.payout[0]} 筆、重複略過 ${tot.payout[1]} 筆。${usage() > 0.8 ? '注意：瀏覽器的儲存空間快滿了，請下載備份後清掉舊資料。' : ''}` : '沒有可以匯入的表。', good.length ? '' : 'bad', good.length > 0);
 });
 
 function exportXlsx(name, aoa) {
@@ -858,11 +963,20 @@ const ACT = {
       (T => ['合計', T.orders, T.cancelled, T.revenue, T.fee, T.due, T.cost, T.profit, T.got, T.pendingAmt + T.lateAmt, T.problems])(summarize(ROWS, DB.cost))]);
   },
   sample() {
-    if (ROWS.length && !confirm('會把範例資料加進現有資料裡，確定嗎？')) return;
-    UNDO = JSON.stringify(DB);
+    // 只在空白的帳本裡載入示範資料，避免和真的帳混在一起
+    if (ROWS.length) return banner('這個賣場已經有資料了。想看示範的話，到「設定」新增一個賣場來試。', 'bad');
     for (const t of sampleTables()) commit(DB, stage(t, DB));
-    UI.intro = true; UI.view = 'home';
-    save(); refresh(); banner('已加入範例資料。', '', true);
+    DB.demo = true; UNDO = null; UI.intro = true; UI.view = 'home';
+    save(); refresh();
+  },
+  endDemo() {
+    DB = { ...blank(), shop: DB.shop, tol: DB.tol, lateDays: DB.lateDays, cancelRe: DB.cancelRe }; UNDO = null; UI.view = 'home';
+    save(); refresh(); banner('示範資料已清掉，可以開始匯入你自己的報表。');
+  },
+  applyFit(b) {
+    const st = staged[b.dataset.i], fit = st && calibrate(st.data, st.map, paidLookup(), DB.tol);
+    if (fit) Object.assign(st.map, { total: fit.total, fees: fit.fees, adds: fit.adds });
+    renderStaged();
   },
   undo() {
     if (!UNDO) return banner('沒有可以復原的匯入。', 'bad');
@@ -921,7 +1035,7 @@ $('#restore').addEventListener('change', async e => {
     const d = JSON.parse(await f.text());
     if (!d || typeof d.orders !== 'object' || typeof d.payouts !== 'object') throw new Error('不是對帳本的備份檔');
     if (!confirm(`備份裡有 ${Object.keys(d.orders).length} 張訂單，還原會取代目前所有資料，確定嗎？`)) return;
-    DB = { ...blank(), ...d }; save(); refresh(); banner('已從備份還原。');
+    DB = sanitize(d); UNDO = null; save(); refresh(); banner('已從備份還原。');
   } catch (err) { banner('還原失敗：' + err.message, 'bad'); }
 });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => refresh()); // 給「跟著系統」用
@@ -930,6 +1044,7 @@ addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classLi
 addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('drag'); if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]); });
 
 // ================= 自我檢查：網址加 #test，或在主控台呼叫 selfTest() =================
+function sdbCheck() { const d = blank(); for (const tb of sampleTables(Date.parse('2026-11-16'))) commit(d, stage(tb, d)); d.imports.forEach(i => { i.at = '2026-11-16T00:00:00.000Z'; }); return d; }
 function selfTest() {
   const fails = [], ok = (c, m) => c || fails.push(m), now = Date.parse('2026-11-16');
   ok(num('NT$1,234') === 1234 && num(-5) === -5 && num('') === 0 && num('-') === 0, 'num');
@@ -979,6 +1094,18 @@ function selfTest() {
   ok(diagnose([{ verdict: '金額不符', total: 1, diff: 1 }]) === null, '差額規律：太少不猜');
   const cm = csMessage([{ id: 'A1', date: '2026-10-01', due: 713, verdict: '逾期未入帳' }, { id: 'B2', verdict: '已入帳', due: 5 }], 14);
   ok(cm.includes('A1') && !cm.includes('B2') && cm.includes('713') && csMessage([], 14) === '', '客服訊息');
+
+  const cal = Array.from({ length: 12 }, (_, i) => ({ id: 'K' + i, buyer: 1060 + i * 37, amt: 1000 + i * 37, f1: 60 + i, f2: 25, coupon: i % 3 ? 10 : 0, bonus: i % 4 ? 0 : 8, memo: 'x', qty: 1 }));
+  const calPaid = new Map(cal.map(r => [r.id, r.amt - r.f1 - r.f2 - r.coupon + r.bonus]));
+  const fit = calibrate(cal, { id: 'id', qty: 'qty', total: 'buyer', fees: ['f1'], adds: [] }, calPaid, 1);
+  ok(fit && fit.hit === 12 && fit.before === 0 && fit.total === 'amt' && fit.fees.slice().sort().join() === 'coupon,f1,f2' && fit.adds.join() === 'bonus', '自動校正 ' + JSON.stringify(fit));
+  ok(calibrate(cal, { id: 'id', total: 'amt', fees: [], adds: [] }, new Map(), 1) === null, '自動校正：沒有入帳資料就不猜');
+  const sz = sanitize({ tol: '<b>', lateDays: -3, orders: { A: { date: '<img src=x>', total: 'x', items: 'no', status: 5 } }, payouts: { k: { id: 7, date: '2026-13-99x', amt: '12' } },
+    cost: { a: '3', b: 'x' }, map: { order: { id: 1, fees: 'f' } }, imports: 'x', notes: { A: 5 }, ack: { A: 1, B: 0 } });
+  ok(sz.tol === 0 && sz.lateDays === 1 && sz.orders.A.date === '' && sz.orders.A.total === 0 && sz.orders.A.items.length === 0 && sz.orders.A.status === '5'
+    && sz.payouts.k.id === '7' && sz.payouts.k.date === '' && sz.payouts.k.amt === 12 && sz.cost.a === 3 && !('b' in sz.cost) && sz.map.order.id === '1'
+    && sz.map.order.fees.length === 0 && sz.imports.length === 0 && sz.notes.A === '5' && sz.ack.A === true && !('B' in sz.ack), '備份資料驗證 ' + JSON.stringify(sz));
+  ok(JSON.stringify(sanitize(sdbCheck())) === JSON.stringify(sdbCheck()), '正常資料經過驗證後不變');
 
   const sdb = blank();
   for (const tb of sampleTables(now)) commit(sdb, stage(tb, sdb));

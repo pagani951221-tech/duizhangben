@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>對帳本：平台撥款，每一筆都對過了嗎？</title>
 <meta name="description" content="把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。資料只存在你的電腦。">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; form-action 'none'; base-uri 'none'">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pagani951221-tech.github.io/duizhangben/">
+<meta property="og:title" content="對帳本：平台撥款，每一筆都對過了嗎？">
+<meta property="og:description" content="把訂單報表和進帳報表拖進來，馬上知道哪幾張訂單還沒入帳、哪幾張被少撥。">
+<meta property="og:image" content="https://pagani951221-tech.github.io/duizhangben/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f5bea'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h8' stroke='%23fff' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='21' r='3' fill='%23ff8a80'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@900&display=swap" rel="stylesheet">
@@ -270,7 +278,8 @@ for (const a of document.querySelectorAll('[data-contact]')) {
   if (CONTACT_URL) { a.href = CONTACT_URL; a.target = '_blank'; a.rel = 'noopener'; a.classList.remove('todo'); }
   else a.textContent += '（還沒填連結）';
 }
-if (CONTACT_URL) document.querySelector('.draft').remove();
+// 網址加 ?og 也會隱藏草稿提示，那是用來產生分享預覽圖的
+if (CONTACT_URL || new URLSearchParams(location.search).has('og')) document.querySelector('.draft').remove();
 </script>
 </body>
 </html>
