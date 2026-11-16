@@ -6,13 +6,20 @@
 
 ![對帳本總覽畫面](style-2-clean.png)
 
+## 線上版
+
+- 銷售頁：https://pagani951221-tech.github.io/duizhangben/
+- 對帳本（含範例資料）：https://pagani951221-tech.github.io/duizhangben/recon.html#demo
+
+網站由 GitHub Pages 從 `main` 分支直接發布，推送後大約一分鐘更新。
+
 ## 檔案
 
 | 檔案 | 用途 |
 |---|---|
 | `recon.html` | 對帳本主程式，用瀏覽器直接打開就能用 |
 | `xlsx.full.min.js` | 讀寫 Excel 的元件，要和 `recon.html` 放在同一個資料夾 |
-| `landing.html` | 給店家看的銷售頁，裡面的「看示範」會打開 `recon.html` |
+| `index.html` | 給店家看的銷售頁，也是網站首頁，裡面的「看示範」會打開 `recon.html` |
 | `style-*.png`、`landing-preview.png` | 三種外觀風格和銷售頁的預覽圖 |
 
 ## 怎麼用
@@ -35,9 +42,9 @@
 - 匯入後可復原、備份和還原
 - 三種外觀風格，淺色和深色
 
-## 上線銷售頁之前
+## 銷售頁的聯絡連結
 
-用文字編輯器打開 `landing.html`，把最下面這一行換成自己的 LINE 連結，頁面最上方的草稿提示就會自動消失：
+用文字編輯器打開 `index.html`，把最下面這一行換成自己的 LINE 連結，頁面最上方的草稿提示就會自動消失：
 
 ```js
 const CONTACT_URL = '';
