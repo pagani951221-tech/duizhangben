@@ -352,7 +352,8 @@ function defaults(headers, kind, saved = {}) {
   for (const [f] of FIELDS[kind]) m[f] = headers.includes(saved[f]) ? saved[f] : guess(headers, KEYS[f]);
   if (kind === 'order') {
     const kept = (saved.fees || []).filter(h => headers.includes(h));
-    m.fees = kept.length ? kept : headers.filter(h => FEE_KEYS.some(k => h.includes(k)));
+    // 蝦皮有「金流與系統處理費率」這種費率欄，數字是百分比不是金額，不能當扣項
+    m.fees = kept.length ? kept : headers.filter(h => FEE_KEYS.some(k => h.includes(k)) && !/率|%/.test(h));
     m.adds = (saved.adds || []).filter(h => headers.includes(h));
   }
   return m;
@@ -375,7 +376,8 @@ function normOrders(data, m) {
   }
   return [...out.values()];
 }
-const normPayouts = (data, m) => data.map(r => ({ id: String(r[m.id] ?? '').trim(), date: isoDate(r[m.pdate]), amt: num(r[m.paid]) })).filter(p => p.id && p.amt);
+// 報表底部常有「小計」「合計」列，訂單編號欄放的是這幾個字，不是訂單
+const normPayouts = (data, m) => data.map(r => ({ id: String(r[m.id] ?? '').trim(), date: isoDate(r[m.pdate]), amt: num(r[m.paid]) })).filter(p => p.id && p.amt && !/^(小計|合計|總計)$/.test(p.id));
 
 function commit(db, st) {
   let added = 0, same = 0;
@@ -1090,6 +1092,8 @@ function selfTest() {
   ok(t.headers.length === 4 && t.data.length === 1 && t.data[0]['訂單編號'] === 'A1' && !('' in t.data[0]), 'toTable');
   ok(classify(t.headers) === 'order' && classify(['訂單編號', '撥款金額']) === 'payout' && classify(['姓名', '金額']) === 'skip', 'classify');
   ok(defaults(t.headers, 'order').total === '商品總價' && defaults(t.headers, 'order').fees.join() === '成交手續費', 'defaults');
+  ok(defaults(['訂單編號', '買家總支付金額', '成交手續費', '金流與系統處理費', '金流與系統處理費率'], 'order').fees.join() === '成交手續費,金流與系統處理費', '費率欄不當扣項');
+  ok(normPayouts([{ i: 'A1', a: 5 }, { i: '小計', a: 5 }], { id: 'i', paid: 'a' }).length === 1, '小計列不當入帳');
 
   const db = blank(), m = { id: 'id', date: 'd', status: 'st', total: 'amt', fees: ['f1', 'f2'], product: 'p', qty: 'q' };
   const orders = [
