@@ -130,7 +130,7 @@
   svg.chart{width:100%;max-width:760px;height:auto;display:block;margin:6px 0 4px}
   .c-due{fill:none;stroke:var(--blue);stroke-width:1.5}
   .c-got{fill:var(--green)}
-  svg.chart text{fill:var(--mute);font-size:12px}
+  svg.chart text{fill:var(--mute);font-size:17px}
   svg.chart line{stroke:var(--ink)}
 
   dialog{color:var(--ink);background:var(--sheet);border:1px solid var(--ink)}
@@ -200,6 +200,31 @@
     .spine nav button[aria-current]{box-shadow:inset 0 3px 0 var(--red)}
     .spine-note{display:none}
     #drawer{width:100vw}
+    /* 手機：主選單固定在畫面底部，六個分頁都看得到，不用橫向滑 */
+    body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
+    .spine{padding:10px 16px}
+    .brand{margin:0}
+    .spine nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(6,1fr);gap:0;overflow:visible;
+      background:var(--spine);border-top:1px solid var(--rule);padding:0 0 env(safe-area-inset-bottom)}
+    .spine nav button,:is([data-theme=clean],[data-theme=vivid]) .spine nav button{position:relative;border-radius:0;padding:0;min-height:56px;text-align:center;font-size:14px}
+    .spine nav button[aria-current]{box-shadow:inset 0 3px 0 var(--red)}
+    [data-theme=clean] .spine nav button[aria-current]{box-shadow:inset 0 3px 0 var(--blue)}
+    #nav button[data-n]:not([data-n=""])::after{position:absolute;top:4px;right:2px;margin:0;font-size:11px;padding:0 5px}
+    .bar-cell{display:none}
+    svg.chart text{font-size:30px}
+  }
+  /* 對帳表格在窄的地方改成一張訂單一張卡片：編號和判定在上面，金額一行一行列出來 */
+  .sheet{container-type:inline-size}
+  @container (max-width:620px){
+    .ledger.cards thead{display:none}
+    .ledger.cards tr{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:2px 20px;padding:12px 2px;border-bottom:1px solid var(--rule)}
+    .ledger.cards td{border:0;padding:0;white-space:normal}
+    .ledger.cards td:nth-child(2){justify-self:end;margin-bottom:4px}
+    .ledger.cards td[data-l]{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+    .ledger.cards td[data-l]::before{content:attr(data-l);color:var(--mute);font-size:13px}
+    .ledger.cards td[data-l]:empty{display:none}
+    .ledger.cards td.n1{border:0}
+    .ledger.cards tbody tr:hover td{background:none}
   }
   .help dt{font-weight:700;margin-top:14px}
   .help dd{margin:2px 0 0}
@@ -617,16 +642,16 @@ function tableHead(sortable) {
     const on = sortable && UI.sort.k === k;
     return `<th class="${cls}"${on ? ` aria-sort="${UI.sort.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${sortable ? `<button class="th" data-act="sort" data-k="${k}">${label}</button>` : label}</th>`;
   };
-  return `<thead><tr><th>訂單編號</th>${col('date', '訂單日期')}<th>狀態</th>${col('total', '訂單金額', 'n n1')}${col('fee', '扣項', 'n')}${col('due', '應收', 'n')}${col('got', '實收', 'n')}${col('diff', '差額', 'n')}<th>判定</th></tr></thead>`;
+  return `<thead><tr><th>訂單編號</th><th>判定</th>${col('date', '訂單日期')}<th>狀態</th>${col('total', '訂單金額', 'n n1')}${col('fee', '扣項', 'n')}${col('due', '應收', 'n')}${col('got', '實收', 'n')}${col('diff', '差額', 'n')}</tr></thead>`;
 }
+// 判定放在第二欄：表格太寬要橫向捲動時，最重要的資訊不會被擠到看不到的地方。data-l 是窄畫面改成卡片時的欄位名稱
 function rowHtml(r) {
   return `<tr><td><button class="idlink" data-act="open" data-id="${esc(r.id)}">${esc(r.id)}</button>${DB.notes[r.id] ? ' <span class="mute small" title="有備註">✎</span>' : ''}</td>
-    <td>${esc(r.date)}</td><td>${esc(r.status)}</td>
-    <td class="n n1">${r.unknown ? '' : money(r.total)}</td><td class="n">${r.unknown ? '' : money(r.fee)}</td><td class="n">${r.unknown ? '' : money(r.due)}</td>
-    <td class="n">${r.got === null ? '' : money(r.got)}</td><td class="n ${r.diff && Math.abs(r.diff) > DB.tol ? 'red' : ''}">${r.diff === null ? '' : signed(r.diff)}</td>
-    <td>${stamp(r.verdict)}</td></tr>`;
+    <td>${stamp(r.verdict)}</td><td data-l="訂單日期">${esc(r.date)}</td><td data-l="狀態">${esc(r.status)}</td>
+    <td class="n n1" data-l="訂單金額">${r.unknown ? '' : money(r.total)}</td><td class="n" data-l="扣項">${r.unknown ? '' : money(r.fee)}</td><td class="n" data-l="應收">${r.unknown ? '' : money(r.due)}</td>
+    <td class="n" data-l="實收">${r.got === null ? '' : money(r.got)}</td><td class="n ${r.diff && Math.abs(r.diff) > DB.tol ? 'red' : ''}" data-l="差額">${r.diff === null ? '' : signed(r.diff)}</td></tr>`;
 }
-const ledger = (rows, sortable) => `<div class="scroll"><table class="ledger">${tableHead(sortable)}<tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`;
+const ledger = (rows, sortable) => `<div class="scroll"><table class="ledger cards">${tableHead(sortable)}<tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`;
 
 function monthChart(list) {
   const W = 720, H = 170, left = 8, max = Math.max(1, ...list.map(x => Math.max(x[1].due, x[1].got))), bw = (W - left) / list.length, w = Math.min(36, bw * 0.36);
@@ -634,7 +659,7 @@ function monthChart(list) {
     const x = left + i * bw, h1 = s.due / max * (H - 4), h2 = Math.max(0, s.got) / max * (H - 4);
     return `<rect class="c-due" x="${x + 1}" y="${H - h1}" width="${w}" height="${h1}"><title>${m} 應收 ${money(s.due)}</title></rect>
       <rect class="c-got" x="${x + w + 4}" y="${H - h2}" width="${w}" height="${h2}"><title>${m} 已入帳 ${money(s.got)}</title></rect>
-      <text x="${x + w + 2}" y="${H + 18}" text-anchor="middle">${m}</text>`;
+      <text x="${x + w + 2}" y="${H + 20}" text-anchor="middle">${+m.slice(5)}月</text>`;
   }).join('')}<line x1="0" x2="${W}" y1="${H}" y2="${H}"/></svg>`;
 }
 
@@ -931,7 +956,7 @@ function download(name, text) {
 }
 
 const ACT = {
-  go(b) { UI.view = b.dataset.v; if (b.dataset.f) UI.filter = b.dataset.f; UI.limit = 100; banner(''); render(); scrollTo(0, 0); },
+  go(b) { UI.view = b.dataset.v; UI.filter = b.dataset.f || 'all'; UI.limit = 100; banner(''); render(); scrollTo(0, 0); },
   filter(b) { UI.filter = b.dataset.f; UI.limit = 100; render(); },
   more() { UI.limit += 200; reconTable(); },
   sort(b) {
@@ -1046,6 +1071,7 @@ $('#restore').addEventListener('change', async e => {
   } catch (err) { banner('還原失敗：' + err.message, 'bad'); }
 });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => refresh()); // 給「跟著系統」用
+addEventListener('hashchange', () => /^#(demo|test)/.test(location.hash) && location.reload()); // 網址只改 # 後面時頁面不會重新載入，示範和自我檢查要重新載入才會跑
 addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag'); });
 addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('drag'); });
 addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('drag'); if (e.dataTransfer.files.length) handleFiles([...e.dataTransfer.files]); });
